@@ -23,14 +23,6 @@ import std.range;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
-
-import dparse.lexer;
-import dparse.rollback_allocator;
-
-import dsymbol.conversion;
-import dsymbol.modulecache;
-import dsymbol.symbol;
-
 import dcd.common.messages;
 
 /**

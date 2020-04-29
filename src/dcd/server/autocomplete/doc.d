@@ -24,12 +24,6 @@ import std.experimental.logger;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
-
-import dparse.lexer;
-import dparse.rollback_allocator;
-
-import dsymbol.modulecache;
-
 import dcd.common.messages;
 
 /**
