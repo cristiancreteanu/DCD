@@ -27,8 +27,6 @@ import std.process: environment;
 import std.stdio: File;
 import std.stdio: KeepTerminator;
 
-import dsymbol.modulecache;
-
 /// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
 

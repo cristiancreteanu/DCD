@@ -39,7 +39,6 @@ import msgpack;
 import dcd.common.dcd_version;
 import dcd.common.messages;
 import dcd.common.socket;
-import dsymbol.modulecache;
 import dcd.server.autocomplete;
 import dcd.server.server;
 

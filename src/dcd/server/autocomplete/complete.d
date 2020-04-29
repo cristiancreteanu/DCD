@@ -29,20 +29,10 @@ import std.string;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
-
-import dparse.lexer;
-import dparse.rollback_allocator;
-
-import dsymbol.builtin.names;
-import dsymbol.builtin.symbols;
-import dsymbol.conversion;
-import dsymbol.modulecache;
-import dsymbol.scope_;
-import dsymbol.string_interning;
-import dsymbol.symbol;
-
 import dcd.common.constants;
 import dcd.common.messages;
+
+import dmd.frontend;
 
 /**
  * Handles autocompletion
