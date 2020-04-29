@@ -248,6 +248,12 @@ int runServer(string[] args)
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 
+		string bla;
+		foreach(ubyte c; request.sourceCode) {
+			bla ~= to!char(c);
+		}
+		writeln(bla);
+
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
