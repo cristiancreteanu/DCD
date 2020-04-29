@@ -181,6 +181,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		// responses when the cursor is in the middle of an identifier instead
 		// of at the end
 		auto t = beforeTokens[$ - 1];
+		// info("\n\n");
+		// info(t);
+		// info("\n\n");
 		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.text.length)
 		{
 			partial = t.text[0 .. cursorPosition - t.index];
@@ -195,6 +198,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 				partial = "";
 			}
 		}
+		// info("\n\nblaaaaaaaaaaaa");
+		// info(partial);
+		// info("\n\n");
 		significantTokenType = partial.length ? tok!"identifier" : tok!"";
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
@@ -202,6 +208,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		significantTokenType = beforeTokens[$ - 2].type;
 	else
 		return response;
+
 
 	switch (significantTokenType)
 	{
