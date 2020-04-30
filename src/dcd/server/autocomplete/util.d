@@ -27,6 +27,11 @@ import std.typecons;
 
 import dcd.common.messages;
 
+import dmd.dsymbol;
+import dmd.dscope;
+import dmd.dmodule;
+import dmd.tokens;
+
 enum ImportKind : ubyte
 {
 	selective,
@@ -38,12 +43,12 @@ struct SymbolStuff
 {
 	void destroy()
 	{
-		typeid(DSymbol).destroy(symbol);
+		typeid(Dsymbol).destroy(symbol);
 		typeid(Scope).destroy(scope_);
 	}
 
-	DSymbol*[] symbols;
-	DSymbol* symbol;
+	Dsymbol*[] symbols;
+	Dsymbol* symbol;
 	Scope* scope_;
 }
 
@@ -56,40 +61,41 @@ struct SymbolStuff
  * Returns:
  *     true if the symbol should be swapped with its type field
  */
-bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
+bool shouldSwapWithType(CompletionType completionType,
 	size_t current, size_t max) pure nothrow @safe
 {
 	// packages never have types, so always return false
-	if (kind == CompletionKind.packageName
-		|| kind == CompletionKind.className
-		|| kind == CompletionKind.structName
-		|| kind == CompletionKind.interfaceName
-		|| kind == CompletionKind.enumName
-		|| kind == CompletionKind.unionName
-		|| kind == CompletionKind.templateName
-		|| kind == CompletionKind.keyword)
-	{
-		return false;
-	}
-	// Swap out every part of a chain with its type except the last part
-	if (current < max)
-		return true;
-	// Only swap out types for these kinds
-	immutable bool isInteresting =
-		kind == CompletionKind.variableName
-		|| kind == CompletionKind.memberVariableName
-		|| kind == CompletionKind.importSymbol
-		|| kind == CompletionKind.aliasName
-		|| kind == CompletionKind.enumMember
-		|| kind == CompletionKind.functionName;
-	return isInteresting && (completionType == CompletionType.identifiers
-		|| (completionType == completionType.calltips && kind == CompletionKind.variableName)) ;
+	// if (kind == CompletionKind.packageName
+	// 	|| kind == CompletionKind.className
+	// 	|| kind == CompletionKind.structName
+	// 	|| kind == CompletionKind.interfaceName
+	// 	|| kind == CompletionKind.enumName
+	// 	|| kind == CompletionKind.unionName
+	// 	|| kind == CompletionKind.templateName
+	// 	|| kind == CompletionKind.keyword)
+	// {
+	// 	return false;
+	// }
+	// // Swap out every part of a chain with its type except the last part
+	// if (current < max)
+	// 	return true;
+	// // Only swap out types for these kinds
+	// immutable bool isInteresting =
+	// 	kind == CompletionKind.variableName
+	// 	|| kind == CompletionKind.memberVariableName
+	// 	|| kind == CompletionKind.importSymbol
+	// 	|| kind == CompletionKind.aliasName
+	// 	|| kind == CompletionKind.enumMember
+	// 	|| kind == CompletionKind.functionName;
+	// return isInteresting && (completionType == CompletionType.identifiers
+	// 	|| (completionType == completionType.calltips && kind == CompletionKind.variableName)) ;
+	return true;
 }
 
-istring stringToken()(auto ref const Token a)
-{
-	return internString(a.text is null ? str(a.type) : a.text);
-}
+// istring stringToken()(auto ref const Token a)
+// {
+// 	return internString(a.text is null ? str(a.type) : a.text);
+// }
 
 //void dumpTokens(const Token[] tokens)
 //{
@@ -105,13 +111,14 @@ istring stringToken()(auto ref const Token a)
  *     a sorted range of tokens before the cursor position
  */
 auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
-	ref StringCache cache, out const(Token)[] tokenArray)
+	out const(Token)[] tokenArray, Module rootModule)
 {
-	LexerConfig config;
-	config.fileName = "";
-	tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
-	auto sortedTokens = assumeSorted(tokenArray);
-	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
+	// tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
+	// auto sortedTokens = assumeSorted(tokenArray);
+	// return sortedTokens.lowerBound(cast(size_t) cursorPosition);
+	auto lexer = new Lexer();
+
+	return null;/////////////////////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /**
@@ -123,17 +130,17 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, IAllocator allocator, RollbackAllocator* rba,
-	ref StringCache cache, ref ModuleCache moduleCache)
+	const CompletionType type, IAllocator allocator)
 {
 	const(Token)[] tokenArray;
-	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-		request.cursorPosition, cache, tokenArray);
-	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		rba, request.cursorPosition, moduleCache);
-	auto expression = getExpression(beforeTokens);
-	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
-		request.cursorPosition, type), pair.symbol, pair.scope_);
+	// auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+	// 	request.cursorPosition, cache, tokenArray);
+	// ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+	// 	rba, request.cursorPosition, moduleCache);
+	// auto expression = getExpression(beforeTokens);
+	// return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
+	// 	request.cursorPosition, type), pair.symbol, pair.scope_);
+	return SymbolStuff(); ///////?!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 bool isSliceExpression(T)(T tokens, size_t index)
@@ -742,16 +749,18 @@ unittest
 	assert(i == 1);
 }
 
-AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
+AutocompleteResponse.Completion makeSymbolCompletionInfo(const Dsymbol* symbol, char kind)
 {
-	string definition;
-	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
-	else if (kind == CompletionKind.enumMember)
-		definition = symbol.name; // TODO: add enum value to definition string
-	else
-		definition = symbol.callTip;
-	// TODO: definition strings could include more information, like on classes inheritance
-	return AutocompleteResponse.Completion(symbol.name, kind, definition,
-		symbol.symbolFile, symbol.location, symbol.doc);
+	// string definition;
+	// if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.getType())
+	// 	definition = symbol.getType().toChars() ~ ' ' ~ symbol.ident.toString();
+	// else if (kind == CompletionKind.enumMember)
+	// 	definition = symbol.ident.toString(); // TODO: add enum value to definition string
+	// // else
+	// // 	definition = symbol.callTip; // de implementat calltip???????????????????????????????????????????????????????????
+
+	// // TODO: definition strings could include more information, like on classes inheritance
+	// return AutocompleteResponse.Completion(symbol.ident.toString(), kind, definition,
+	// 	symbol.getModule().srcfile.toString(), symbol.loc, symbol.comment);
+	return AutocompleteResponse.Completion();
 }

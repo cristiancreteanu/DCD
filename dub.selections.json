@@ -1,0 +1,9 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"dmd": "~master",
+		"emsi_containers": "0.8.0-alpha.19",
+		"msgpack-d": "1.0.2",
+		"stdx-allocator": "2.77.5"
+	}
+}
