@@ -32,6 +32,10 @@ import dmd.dscope;
 import dmd.dmodule;
 import dmd.tokens;
 import dmd.lexer;
+import dmd.globals;
+import dmd.declaration;
+import dmd.dimport;
+import dmd.func;
 
 enum ImportKind : ubyte
 {
@@ -111,7 +115,7 @@ bool shouldSwapWithType(CompletionType completionType,
  * Returns:
  *     a sorted range of tokens before the cursor position
  */
-auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
+auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 	out const(Token)[] tokenArray, Module rootModule)
 {
 	// tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
@@ -160,48 +164,48 @@ SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 	return SymbolStuff(); ///////?!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
-bool isSliceExpression(T)(T tokens, size_t index)
+bool isSliceExpression(T)(T tokens, size_t index) //!!!!!!!!!!!!!!
 {
-	while (index < tokens.length) switch (tokens[index].type)
-	{
-	case tok!"[":
-		tokens.skipParen(index, tok!"[", tok!"]");
-		break;
-	case tok!"(":
-		tokens.skipParen(index, tok!"(", tok!")");
-		break;
-	case tok!"]":
-	case tok!"}":
-		return false;
-	case tok!"..":
-		return true;
-	default:
-		index++;
-		break;
-	}
+	// while (index < tokens.length) switch (tokens[index].type)
+	// {
+	// case tok!"[":
+	// 	tokens.skipParen(index, tok!"[", tok!"]");
+	// 	break;
+	// case tok!"(":
+	// 	tokens.skipParen(index, tok!"(", tok!")");
+	// 	break;
+	// case tok!"]":
+	// case tok!"}":
+	// 	return false;
+	// case tok!"..":
+	// 	return true;
+	// default:
+	// 	index++;
+	// 	break;
+	// }
 	return false;
 }
 
 /**
  *
  */
-DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
-	T tokens, size_t cursorPosition, CompletionType completionType)
+Dsymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
+	T tokens, Loc cursorPosition, CompletionType completionType)
 {
 	//writeln(">>>");
 	//dumpTokens(tokens.release);
 	//writeln(">>>");
 
 	// Find the symbol corresponding to the beginning of the chain
-	DSymbol*[] symbols;
+	Dsymbol*[] symbols;
 	if (tokens.length == 0)
 		return [];
 	// Recurse in case the symbol chain starts with an expression in parens
 	// e.g. (a.b!c).d
-	if (tokens[0] == tok!"(")
+	if (tokens[0].value == /*tok!"("*/TOK.leftParentheses)
 	{
 		size_t j;
-		tokens.skipParen(j, tok!"(", tok!")");
+		tokens.skipParen(j, /*tok!"("*/TOK.leftParentheses, /*tok!")"*/ TOK.rightParentheses);
 		if (j > 1)
 		{
 			symbols = getSymbolsByTokenChain(completionScope, tokens[1 .. j],
@@ -214,7 +218,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		if (tokens.length == 0) // workaround (#371)
 			return [];
 	}
-	else if (tokens[0] == tok!"." && tokens.length >= 1)
+	else if (tokens[0].value == /*tok!"."*/ TOK.dot && tokens.length >= 1)
 	{
 		if (tokens.length == 1)
 		{
@@ -274,61 +278,86 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	filterProperties();
 
-	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
-	{
-		//trace("Swapping types");
-		if (symbols.length == 0 || symbols[0].type is null || symbols[0].type is symbols[0])
-			return [];
-		else if (symbols[0].type.kind == CompletionKind.functionName)
-		{
-			if (symbols[0].type.type is null)
-				symbols = [];
-			else
-				symbols = [symbols[0].type.type];
-		}
-		else
-			symbols = [symbols[0].type];
-	}
+	// if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1)) /// !!!!!!!!!!!!!!!!!!!!!!
+	// {
+	// 	//trace("Swapping types");
+	// 	if (symbols.length == 0 || symbols[0].getType() is null || symbols[0].getType() is symbols[0])
+	// 		return [];
+	// 	else if (symbols[0].type.kind == CompletionKind.functionName)
+	// 	{
+	// 		if (symbols[0].type.type is null)
+	// 			symbols = [];
+	// 		else
+	// 			symbols = [symbols[0].type.type];
+	// 	}
+	// 	else
+	// 		symbols = [symbols[0].type];
+	// }
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
 	{
-		void skip(IdType open, IdType close)
+		void skip(TOK open, TOK close)
 		{
 			tokens.skipParen(i, open, close);
 		}
 
-		switch (tokens[i].type)
+		switch (tokens[i].value)
 		{
-		case tok!"int":
-		case tok!"uint":
-		case tok!"long":
-		case tok!"ulong":
-		case tok!"char":
-		case tok!"wchar":
-		case tok!"dchar":
-		case tok!"bool":
-		case tok!"byte":
-		case tok!"ubyte":
-		case tok!"short":
-		case tok!"ushort":
-		case tok!"cent":
-		case tok!"ucent":
-		case tok!"float":
-		case tok!"ifloat":
-		case tok!"cfloat":
-		case tok!"idouble":
-		case tok!"cdouble":
-		case tok!"double":
-		case tok!"real":
-		case tok!"ireal":
-		case tok!"creal":
-		case tok!"this":
-		case tok!"super":
+		// case tok!"int":
+		// case tok!"uint":
+		// case tok!"long":
+		// case tok!"ulong":
+		// case tok!"char":
+		// case tok!"wchar":
+		// case tok!"dchar":
+		// case tok!"bool":
+		// case tok!"byte":
+		// case tok!"ubyte":
+		// case tok!"short":
+		// case tok!"ushort":
+		// case tok!"cent":
+		// case tok!"ucent":
+		// case tok!"float":
+		// case tok!"ifloat":
+		// case tok!"cfloat":
+		// case tok!"idouble":
+		// case tok!"cdouble":
+		// case tok!"double":
+		// case tok!"real":
+		// case tok!"ireal":
+		// case tok!"creal":
+		// case tok!"this":
+		// case tok!"super":
+		case TOK.int8:
+		case TOK.uns8:
+		case TOK.int16:
+		case TOK.uns16:
+		case TOK.int32:
+		case TOK.uns32:
+		case TOK.int64:
+		case TOK.uns64:
+		case TOK.int128:
+		case TOK.uns128:
+		case TOK.float32:
+		case TOK.float64:
+		case TOK.float80:
+		case TOK.bool_:
+		case TOK.char_:
+		case TOK.wchar_:
+		case TOK.dchar_:
+		case TOK.imaginary32:
+		case TOK.imaginary64:
+		case TOK.imaginary80:
+		case TOK.complex32:
+		case TOK.complex64:
+		case TOK.complex80:
+		case TOK.this_:
+		case TOK.super_:
 			symbols = symbols[0].getPartsByName(internString(str(tokens[i].type)));
 			if (symbols.length == 0)
 				break loop;
 			break;
-		case tok!"identifier":
+		case /*tok!"identifier"*/ TOK.identifier:
 			//trace(symbols[0].qualifier, " ", symbols[0].kind);
 			filterProperties();
 
@@ -336,17 +365,20 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				break loop;
 
 			// Use type instead of the symbol itself for certain symbol kinds
-			while (symbols[0].qualifier == SymbolQualifier.func
-				|| symbols[0].kind == CompletionKind.functionName
-				|| (symbols[0].kind == CompletionKind.moduleName
-					&& symbols[0].type !is null && symbols[0].type.kind == CompletionKind.importSymbol)
-				|| symbols[0].kind == CompletionKind.importSymbol
-				|| symbols[0].kind == CompletionKind.aliasName)
-			{
-				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
-				if (symbols.length == 0)
-					break loop;
-			}
+			// while (symbols[0].qualifier == SymbolQualifier.func
+			// 	|| symbols[0].kind == CompletionKind.functionName
+			// 	|| (symbols[0].kind == CompletionKind.moduleName
+			// 		&& symbols[0].type !is null && symbols[0].type.kind == CompletionKind.importSymbol)
+			// 	|| symbols[0].kind == CompletionKind.importSymbol
+			// 	|| symbols[0].kind == CompletionKind.aliasName)
+			// while(cast(FuncDeclaration)symbols[0] !is null
+			// 	|| cast(Module)symbols[0] !is null
+			// 	|| cast(AliasDeclaration)symbols[0] !is null)
+			// {
+			// 	symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
+			// 	if (symbols.length == 0)
+			// 		break loop;
+			// } ???????????????????
 
 			//trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
@@ -498,7 +530,7 @@ enum TYPE_IDENT_AND_LITERAL_CASES = TYPE_IDENT_CASES ~ STRING_LITERAL_CASES;
 T getExpression(T)(T beforeTokens)
 {
 	enum EXPRESSION_LOOP_BREAK = q{
-		if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
+		if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].value)
 		{
 		mixin (TYPE_IDENT_AND_LITERAL_CASES);
 			i++;
@@ -512,29 +544,29 @@ T getExpression(T)(T beforeTokens)
 		return beforeTokens[0 .. 0];
 	size_t i = beforeTokens.length - 1;
 	size_t sliceEnd = beforeTokens.length;
-	IdType open;
-	IdType close;
+	TOK open;
+	TOK close;
 	uint skipCount = 0;
 
 	expressionLoop: while (true)
 	{
-		switch (beforeTokens[i].type)
+		switch (beforeTokens[i].value)
 		{
-		case tok!"import":
+		case TOK.import_:
 			i++;
 			break expressionLoop;
 		mixin (TYPE_IDENT_AND_LITERAL_CASES);
 			mixin (EXPRESSION_LOOP_BREAK);
 			break;
-		case tok!".":
+		case TOK.dot:
 			break;
-		case tok!")":
-			open = tok!")";
-			close = tok!"(";
+		case TOK.rightParentheses:
+			open = TOK.rightParentheses;
+			close = TOK.leftParentheses;
 			goto skip;
-		case tok!"]":
-			open = tok!"]";
-			close = tok!"[";
+		case TOK.rightBracket:
+			open = TOK.rightBracket;
+			close = TOK.leftBracket;
 		skip:
 			mixin (EXPRESSION_LOOP_BREAK);
 			immutable bookmark = i;
@@ -544,22 +576,22 @@ T getExpression(T)(T beforeTokens)
 
 			// check the current token after skipping parens to the left.
 			// if it's a loop keyword, pretend we never skipped the parens.
-			if (i > 0) switch (beforeTokens[i - 1].type)
+			if (i > 0) switch (beforeTokens[i - 1].value)
 			{
-				case tok!"scope":
-				case tok!"if":
-				case tok!"while":
-				case tok!"for":
-				case tok!"foreach":
-				case tok!"foreach_reverse":
-				case tok!"do":
-				case tok!"cast":
-				case tok!"catch":
+				case TOK.scope_:
+				case TOK.if_:
+				case TOK.while_:
+				case TOK.for_:
+				case TOK.foreach_:
+				case TOK.foreach_reverse_:
+				case TOK.do_:
+				case TOK.cast_:
+				case TOK.catch_:
 					i = bookmark + 1;
 					break expressionLoop;
-				case tok!"!":
+				case TOK.not:
 					// only break if the bang is for a template instance
-					if (i - 2 >= 0  && beforeTokens[i - 2].type == tok!"identifier" && skipCount == 1)
+					if (i - 2 >= 0  && beforeTokens[i - 2].value == TOK.identifier && skipCount == 1)
 					{
 						sliceEnd = i - 1;
 						i -= 2;
@@ -593,7 +625,7 @@ ImportKind determineImportKind(T)(T tokens)
 			|| tokens[i] == tok!"identifier"))
 		return ImportKind.neither;
 	bool foundColon = false;
-	while (true) switch (tokens[i].type)
+	while (true) switch (tokens[i].value)
 	{
 	case tok!":":
 		foundColon = true;
@@ -641,19 +673,19 @@ bool isUdaExpression(T)(ref T tokens)
 		return result;
 
 	// skips the UDA ctor
-	if (tokens[i].type == tok!")")
+	if (tokens[i].value == /*tok!")"*/ TOK.rightParentheses)
 	{
 		++skip;
 		--i;
 		while (i >= 2)
 		{
-			skip += tokens[i].type == tok!")";
-			skip -= tokens[i].type == tok!"(";
+			skip += tokens[i].value == /*tok!")"*/ TOK.rightParentheses;
+			skip -= tokens[i].value == /*tok!"("*/ TOK.leftParentheses;
 			--i;
 			if (skip == 0)
 			{
 				// @UDA!(TemplateParameters)(FunctionParameters)
-				if (i > 3 && tokens[i].type == tok!"!" && tokens[i-1].type == tok!")")
+				if (i > 3 && tokens[i].value == /*tok!"!"*/ TOK.not && tokens[i-1].value == /*tok!")"*/ TOK.rightParentheses)
 				{
 					skip = 1;
 					i -= 2;
@@ -667,13 +699,13 @@ bool isUdaExpression(T)(ref T tokens)
 	if (skip == 0)
 	{
 		// @UDA!SingleTemplateParameter
-		if (i > 2 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"!")
+		if (i > 2 && tokens[i].value == TOK.identifier && tokens[i-1].value == /*tok!"!"*/TOK.not)
 		{
 			i -= 2;
 		}
 
 		// @UDA
-		if (i > 0 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"@")
+		if (i > 0 && tokens[i].value == TOK.identifier && tokens[i-1].value == /*tok!"@"*/TOK.at)
 		{
 			result = true;
 		}
@@ -737,7 +769,7 @@ body
 /**
  * Skips blocks of parentheses until the starting block has been closed
  */
-void skipParen(T)(T tokenSlice, ref size_t i, IdType open, IdType close)
+void skipParen(T)(T tokenSlice, ref size_t i, TOK open, TOK close)
 {
 	if (i >= tokenSlice.length || tokenSlice.length <= 0)
 		return;
@@ -745,9 +777,9 @@ void skipParen(T)(T tokenSlice, ref size_t i, IdType open, IdType close)
 	while (depth != 0 && i + 1 != tokenSlice.length)
 	{
 		i++;
-		if (tokenSlice[i].type == open)
+		if (tokenSlice[i].value == open)
 			depth++;
-		else if (tokenSlice[i].type == close)
+		else if (tokenSlice[i].value == close)
 			depth--;
 	}
 }
@@ -755,7 +787,7 @@ void skipParen(T)(T tokenSlice, ref size_t i, IdType open, IdType close)
 /**
  * Skips blocks of parentheses in reverse until the starting block has been opened
  */
-size_t skipParenReverse(T)(T beforeTokens, size_t i, IdType open, IdType close)
+size_t skipParenReverse(T)(T beforeTokens, size_t i, TOK open, TOK close)
 {
 	if (i == 0)
 		return 0;
@@ -763,15 +795,15 @@ size_t skipParenReverse(T)(T beforeTokens, size_t i, IdType open, IdType close)
 	while (depth != 0 && i != 0)
 	{
 		i--;
-		if (beforeTokens[i].type == open)
+		if (beforeTokens[i].value == open)
 			depth++;
-		else if (beforeTokens[i].type == close)
+		else if (beforeTokens[i].value == close)
 			depth--;
 	}
 	return i;
 }
 
-size_t skipParenReverseBefore(T)(T beforeTokens, size_t i, IdType open, IdType close)
+size_t skipParenReverseBefore(T)(T beforeTokens, size_t i, TOK open, TOK close)
 {
 	i = skipParenReverse(beforeTokens, i, open, close);
 	if (i != 0)
