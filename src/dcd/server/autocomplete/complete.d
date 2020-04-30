@@ -37,6 +37,11 @@ import dmd.dscope;
 import dmd.dmodule;
 import dmd.tokens;
 import dmd.globals;
+import dmd.statement;
+import dmd.semantic2;
+import dmd.semantic3;
+import dmd.dsymbolsem;
+
 
 /**
  * Handles autocompletion
@@ -71,7 +76,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 											TOK.complex80)))
 	{
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
-		fakeIdent.ptr = str(fakeIdent.value);
+		// fakeIdent.ptr = str(fakeIdent.value);
 		fakeIdent.value = TOK.identifier;
 	}
 
@@ -150,14 +155,14 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		// 	{
 		// 		if (beforeTokens.isUdaExpression)
 		// 			beforeTokens = beforeTokens[$-1 .. $];
-		// 		return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
-		// 			moduleCache);
+				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
+					rootModule);
 		// 	}
 		// 	else
 		// 		return importCompletion(beforeTokens, kind, moduleCache);
 		// }
-		AutocompleteResponse response;
-		return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// AutocompleteResponse response;
+		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
 	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, rootModule);
 }
@@ -240,10 +245,10 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.semicolon:
 	case TOK.rightCurly:
 	case TOK.comma:
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, 1, rootModule);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, Loc.initial, rootModule);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
-			1, CompletionType.identifiers, false, partial);
+			Loc.initial, CompletionType.identifiers, false, partial);
 		break;
 	default:
 		break;
@@ -268,8 +273,28 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	// auto r = first.rootSymbol.acSymbol;
 	// typeid(SemanticSymbol).destroy(first.rootSymbol);
 	// return ScopeSymbolPair(r, first.moduleScope);
+	rootModule.parse();
 
-	return ScopeSymbolPair(null, null);
+	Scope *scp;
+	onStatementSemanticDone = delegate void(Statement s, Scope *sc) {
+        if (s.loc.linnum == cursorPosition.linnum) {
+            scp = sc;
+        }
+	};
+
+	rootModule.importAll(null);
+    rootModule.dsymbolSemantic(null);
+
+	Module.dprogress = 1;
+    Module.runDeferredSemantic();
+
+	rootModule.semantic2(null);
+	Module.runDeferredSemantic2();
+
+	rootModule.semantic3(null);
+	Module.runDeferredSemantic3();
+
+	return ScopeSymbolPair(null, scp);
 }
 
 struct ScopeSymbolPair
@@ -570,14 +595,24 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
 	{//!!!!!!!!!!!!!!!!!!
-		// auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		Dsymbol[] currentSymbols;
+		Scope *scp = completionScope;
+		while (scp) {
+			if (scp.scopesym && scp.scopesym.symtab)
+				foreach (x; scp.scopesym.symtab.tab.asRange()) {
+					currentSymbols ~= x.value;
+				}
+			scp = scp.enclosing;
+		}
+
 		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 		// 		&& toUpper(a.name.data).startsWith(toUpper(partial))
 		// 		&& mightBeRelevantInCompletionScope(a, completionScope)))
-		// {
-		// 	response.completions ~= makeSymbolCompletionInfo(s, s.kind);
-		// }
-		// response.completionType = CompletionType.identifiers;
+		foreach (s; currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))))
+		{
+			response.completions ~= makeSymbolCompletionInfo(s);
+		}
+		response.completionType = CompletionType.identifiers;
 		return;
 	}
 	// "Module Scope Operator" : filter module decls
@@ -603,99 +638,99 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (tokens.length == 0)
 		return;
 
-	Dsymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
-		cursorPosition, completionType);
+	// Dsymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+	// 	cursorPosition, completionType);
 
-	if (symbols.length == 0)
-		return;
+	// if (symbols.length == 0)
+	// 	return;
 
-	if (completionType == CompletionType.identifiers)
-	{
-		while (symbols[0].qualifier == SymbolQualifier.func
-				|| symbols[0].kind == CompletionKind.functionName
-				|| symbols[0].kind == CompletionKind.importSymbol
-				|| symbols[0].kind == CompletionKind.aliasName)
-		{
-			symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? []
-				: [symbols[0].type];
-			if (symbols.length == 0)
-				return;
-		}
-		addSymToResponse(symbols[0], response, partial, completionScope);
-		response.completionType = CompletionType.identifiers;
-	}
-	else if (completionType == CompletionType.calltips)
-	{
-		//trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
-		if (symbols[0].kind != CompletionKind.functionName
-			&& symbols[0].callTip is null)
-		{
-			if (symbols[0].kind == CompletionKind.aliasName)
-			{
-				if (symbols[0].type is null || symbols[0].type is symbols[0])
-					return;
-				symbols = [symbols[0].type];
-			}
-			if (symbols[0].kind == CompletionKind.variableName)
-			{
-				auto dumb = symbols[0].type;
-				if (dumb !is null)
-				{
-					if (dumb.kind == CompletionKind.functionName)
-					{
-						symbols = [dumb];
-						goto setCallTips;
-					}
-					if (isBracket)
-					{
-						auto index = dumb.getPartsByName(internString("opIndex"));
-						if (index.length > 0)
-						{
-							symbols = index;
-							goto setCallTips;
-						}
-					}
-					auto call = dumb.getPartsByName(internString("opCall"));
-					if (call.length > 0)
-					{
-						symbols = call;
-						goto setCallTips;
-					}
-				}
-			}
-			if (symbols[0].kind == CompletionKind.structName
-				|| symbols[0].kind == CompletionKind.className)
-			{
-				auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
-				if (constructor.length == 0)
-				{
-					// Build a call tip out of the struct fields
-					if (symbols[0].kind == CompletionKind.structName)
-					{
-						response.completionType = CompletionType.calltips;
-						response.completions = [generateStructConstructorCalltip(symbols[0])];
-						return;
-					}
-				}
-				else
-				{
-					symbols = constructor;
-					goto setCallTips;
-				}
-			}
-		}
-	setCallTips:
-		response.completionType = CompletionType.calltips;
-		foreach (symbol; symbols)
-		{
-			if (symbol.kind != CompletionKind.aliasName && symbol.callTip !is null)
-			{
-				auto completion = makeSymbolCompletionInfo(symbol, char.init);
-				// TODO: put return type
-				response.completions ~= completion;
-			}
-		}
-	}
+	// if (completionType == CompletionType.identifiers)
+	// {
+	// 	while (symbols[0].qualifier == SymbolQualifier.func
+	// 			|| symbols[0].kind == CompletionKind.functionName
+	// 			|| symbols[0].kind == CompletionKind.importSymbol
+	// 			|| symbols[0].kind == CompletionKind.aliasName)
+	// 	{
+	// 		symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? []
+	// 			: [symbols[0].type];
+	// 		if (symbols.length == 0)
+	// 			return;
+	// 	}
+	// 	addSymToResponse(symbols[0], response, partial, completionScope);
+	// 	response.completionType = CompletionType.identifiers;
+	// }
+	// else if (completionType == CompletionType.calltips)
+	// {
+	// 	//trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
+	// 	if (symbols[0].kind != CompletionKind.functionName
+	// 		&& symbols[0].callTip is null)
+	// 	{
+	// 		if (symbols[0].kind == CompletionKind.aliasName)
+	// 		{
+	// 			if (symbols[0].type is null || symbols[0].type is symbols[0])
+	// 				return;
+	// 			symbols = [symbols[0].type];
+	// 		}
+	// 		if (symbols[0].kind == CompletionKind.variableName)
+	// 		{
+	// 			auto dumb = symbols[0].type;
+	// 			if (dumb !is null)
+	// 			{
+	// 				if (dumb.kind == CompletionKind.functionName)
+	// 				{
+	// 					symbols = [dumb];
+	// 					goto setCallTips;
+	// 				}
+	// 				if (isBracket)
+	// 				{
+	// 					auto index = dumb.getPartsByName(internString("opIndex"));
+	// 					if (index.length > 0)
+	// 					{
+	// 						symbols = index;
+	// 						goto setCallTips;
+	// 					}
+	// 				}
+	// 				auto call = dumb.getPartsByName(internString("opCall"));
+	// 				if (call.length > 0)
+	// 				{
+	// 					symbols = call;
+	// 					goto setCallTips;
+	// 				}
+	// 			}
+	// 		}
+	// 		if (symbols[0].kind == CompletionKind.structName
+	// 			|| symbols[0].kind == CompletionKind.className)
+	// 		{
+	// 			auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
+	// 			if (constructor.length == 0)
+	// 			{
+	// 				// Build a call tip out of the struct fields
+	// 				if (symbols[0].kind == CompletionKind.structName)
+	// 				{
+	// 					response.completionType = CompletionType.calltips;
+	// 					response.completions = [generateStructConstructorCalltip(symbols[0])];
+	// 					return;
+	// 				}
+	// 			}
+	// 			else
+	// 			{
+	// 				symbols = constructor;
+	// 				goto setCallTips;
+	// 			}
+	// 		}
+	// 	}
+	// setCallTips:
+	// 	response.completionType = CompletionType.calltips;
+	// 	foreach (symbol; symbols)
+	// 	{
+	// 		if (symbol.kind != CompletionKind.aliasName && symbol.callTip !is null)
+	// 		{
+	// 			auto completion = makeSymbolCompletionInfo(symbol, char.init);
+	// 			// TODO: put return type
+	// 			response.completions ~= completion;
+	// 		}
+	// 	}
+	// }
 }
 
 bool mightBeRelevantInCompletionScope(const Dsymbol* symbol, Scope* scope_)
