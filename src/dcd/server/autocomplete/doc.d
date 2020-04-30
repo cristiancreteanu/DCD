@@ -26,6 +26,8 @@ import std.typecons;
 import dcd.server.autocomplete.util;
 import dcd.common.messages;
 
+import dmd.dmodule;
+
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -34,33 +36,33 @@ import dcd.common.messages;
  *     the autocompletion response
  */
 public AutocompleteResponse getDoc(const AutocompleteRequest request,
-	ref ModuleCache moduleCache)
+	ref Module rootModule)
 {
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
-	RollbackAllocator rba;
-	auto allocator = scoped!(ASTAllocator)();
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
-	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-		allocator, &rba, cache, moduleCache);
-	if (stuff.symbols.length == 0)
-		warning("Could not find symbol");
-	else
-	{
-		// first symbol allows ditto if it's the first documentation,
-		// because then it takes documentation from a symbol with different name
-		// which isn't inside the stuff.symbols range.
-		bool firstSymbol = true;
-		foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty))
-		{
-			if (!firstSymbol && symbol.doc.ditto)
-				continue;
-			firstSymbol = false;
+	// RollbackAllocator rba;
+	// auto allocator = scoped!(ASTAllocator)();
+	// auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
+	// 	allocator, &rba, cache, moduleCache);
+	// if (stuff.symbols.length == 0)
+	// 	warning("Could not find symbol");
+	// else
+	// {
+	// 	// first symbol allows ditto if it's the first documentation,
+	// 	// because then it takes documentation from a symbol with different name
+	// 	// which isn't inside the stuff.symbols range.
+	// 	bool firstSymbol = true;
+	// 	foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty))
+	// 	{
+	// 		if (!firstSymbol && symbol.doc.ditto)
+	// 			continue;
+	// 		firstSymbol = false;
 
-			AutocompleteResponse.Completion c;
-			c.documentation = symbol.doc;
-			response.completions ~= c;
-		}
-	}
+	// 		AutocompleteResponse.Completion c;
+	// 		c.documentation = symbol.doc;
+	// 		response.completions ~= c;
+	// 	}
+	// }
 	return response;
 }

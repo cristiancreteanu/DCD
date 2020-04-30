@@ -2,11 +2,8 @@
 	"fileVersion": 1,
 	"versions": {
 		"dmd": "~master",
-		"dsymbol": "0.9.2",
 		"emsi_containers": "0.8.0-alpha.19",
-		"libdparse": "0.13.2",
 		"msgpack-d": "1.0.2",
-		"stdx-allocator": "2.77.5",
-        "dmd": "*"
-    }
+		"stdx-allocator": "2.77.5"
+	}
 }

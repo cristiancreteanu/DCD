@@ -95,6 +95,6 @@ string[] loadConfiguredImportDirs()
 		.filter!(a => a.length > 0 && a[0] != '#')
 		.map!(a => a.idup)
 		.map!(expandEnvVars)
-		.filter!(a => existanceCheck(a))
+		// .filter!(a => existanceCheck(a)) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		.array();
 }

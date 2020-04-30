@@ -175,15 +175,15 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	ModuleCache cache = ModuleCache(new ASTAllocator);
-	cache.addImportPaths(importPaths);
-	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
+	// ModuleCache cache = ModuleCache(new ASTAllocator);
+	// cache.addImportPaths(importPaths);
+	// infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.instance.deallocate(buffer);
 
 	sw.stop();
-	info(cache.symbolsAllocated, " symbols cached.");
+	// info(cache.symbolsAllocated, " symbols cached.");
 	info("Startup completed in ", sw.peek().total!"msecs"(), " milliseconds.");
 
 	// No relative paths
@@ -256,7 +256,7 @@ int runServer(string[] args)
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
-			cache.clear();
+			// cache.clear();
 		}
 		else if (request.kind & RequestKind.shutdown)
 		{
@@ -271,19 +271,19 @@ int runServer(string[] args)
 
 		if (request.kind & RequestKind.addImport)
 		{
-			cache.addImportPaths(request.importPaths);
+			// cache.addImportPaths(request.importPaths);
 		}
 
 		if (request.kind & RequestKind.removeImport)
 		{
-			cache.removeImportPaths(request.importPaths);
+			// cache.removeImportPaths(request.importPaths);
 		}
 
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
-			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
-			info("Returning import path list");
+			// response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
+			// info("Returning import path list");
 			s.sendResponse(response);
 		}
 		else if (request.kind & RequestKind.autocomplete)
@@ -294,14 +294,14 @@ int runServer(string[] args)
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
+			// s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
 		}
-		else if (request.kind & RequestKind.symbolLocation)
-			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
-		else if (request.kind & RequestKind.search)
-			s.sendResponse(symbolSearch(request, cache));
-		else if (request.kind & RequestKind.localUse)
-			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+		// else if (request.kind & RequestKind.symbolLocation)
+		// 	s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
+		// else if (request.kind & RequestKind.search)
+		// 	s.sendResponse(symbolSearch(request, cache));
+		// else if (request.kind & RequestKind.localUse)
+		// 	s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
 
 		sw.stop();
 		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
