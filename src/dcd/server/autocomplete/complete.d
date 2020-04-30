@@ -35,6 +35,7 @@ import dcd.common.messages;
 import dmd.dsymbol;
 import dmd.dscope;
 import dmd.dmodule;
+import dmd.tokens;
 
 /**
  * Handles autocompletion
@@ -46,8 +47,8 @@ import dmd.dmodule;
 public AutocompleteResponse complete(const AutocompleteRequest request, Module rootModule)
 {
 	const(Token)[] tokenArray;
-	// auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-	// 	request.cursorPosition, stringCache, tokenArray);
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, tokenArray, rootModule);
 
 	// allows to get completion on keyword, typically "is"
 	/*
@@ -59,23 +60,30 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
         tok!"void", tok!"wchar");
 	*/
 	if (beforeTokens.length &&
-		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
+		(beforeTokens[$-1].isKeyword()
+		|| beforeTokens[$-1].value.among(TOK.int8, TOK.uns8, TOK.int16, TOK.uns16,
+											TOK.int32, TOK.uns32, TOK.int64, TOK.uns64,
+											TOK.int128, TOK.uns128, TOK.float32, TOK.float64,
+											TOK.float80, TOK.bool_, TOK.char_, TOK.wchar_,
+											TOK.dchar_, TOK.imaginary32, TOK.imaginary64,
+											TOK.imaginary80, TOK.complex32, TOK.complex64,
+											TOK.complex80)))
 	{
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
-		fakeIdent.text = str(fakeIdent.type);
-		fakeIdent.type = tok!"identifier";
+		fakeIdent.ptr = str(fakeIdent.value);
+		fakeIdent.value = TOK.identifier;
 	}
 
 	const bool dotId = beforeTokens.length >= 2 &&
-		beforeTokens[$-1] == tok!"identifier" && beforeTokens[$-2] == tok!".";
+		beforeTokens[$-1] == TOK.identifier && beforeTokens[$-2] == TOK.dot;
 
 	// detects if the completion request uses the current module `ModuleDeclaration`
 	// as access chain. In this case removes this access chain, and just keep the dot
 	// because within a module semantic is the same (`myModule.stuff` -> `.stuff`).
-	if (tokenArray.length >= 3 && tokenArray[0] == tok!"module" && beforeTokens.length &&
-		(beforeTokens[$-1] == tok!"." || dotId))
+	if (tokenArray.length >= 3 && tokenArray[0] == TOK.module_ && beforeTokens.length &&
+		(beforeTokens[$-1] == TOK.dot || dotId))
 	{
-		const moduleDeclEndIndex = tokenArray.countUntil!(a => a.type == tok!";");
+		const moduleDeclEndIndex = tokenArray.countUntil!(a => a.value == TOK.semicolon);
 		bool beginsWithModuleName;
 		// enough room for the module decl and the fqn...
 		if (moduleDeclEndIndex != -1 && beforeTokens.length >= moduleDeclEndIndex * 2)
@@ -88,8 +96,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			// verify that the chain is well located after an expr or a decl
 			if (i == 0)
 			{
-				if (!beforeTokens[j].type.among(tok!"{", tok!"}", tok!";",
-					tok!"[", tok!"(", tok!",",  tok!":"))
+				if (!beforeTokens[j].value.among(TOK.leftCurly, TOK.rightCurly, TOK.semicolon,
+					TOK.leftBracket, TOK.leftParentheses, TOK.comma,  TOK.colon))
 						break;
 			}
 			// then compare the end of the "before tokens" (access chain)
@@ -98,12 +106,12 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			{
 				// even index : must be a dot
 				if (expectDot &&
-					(tokenArray[i].type != tok!"." || beforeTokens[j].type != tok!"."))
+					(tokenArray[i].value != TOK.dot || beforeTokens[j].value != TOK.dot))
 						break;
 				// odd index : identifiers must match
 				else if (expectIdt &&
-					(tokenArray[i].type != tok!"identifier" || beforeTokens[j].type != tok!"identifier" ||
-					tokenArray[i].text != beforeTokens[j].text))
+					(tokenArray[i].value != TOK.identifier || beforeTokens[j].value != TOK.identifier ||
+					tokenArray[i].ptr != beforeTokens[j].ptr)) // aici cred ca trebuie cu strcmp !!!!!!!!!!!!!!!!!!!!!!!!!!!
 						break;
 			}
 			if (i == moduleDeclEndIndex - 1)
@@ -125,29 +133,30 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 
 	if (beforeTokens.length >= 2)
 	{
-		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"["
-			|| beforeTokens[$ - 1] == tok!",")
-		{
-			immutable size_t end = goBackToOpenParen(beforeTokens);
-			if (end != size_t.max)
-				return parenCompletion(beforeTokens[0 .. end], tokenArray,
-					request.cursorPosition, moduleCache);
-		}
-		else
-		{
-			ImportKind kind = determineImportKind(beforeTokens);
-			if (kind == ImportKind.neither)
-			{
-				if (beforeTokens.isUdaExpression)
-					beforeTokens = beforeTokens[$-1 .. $];
-				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
-					moduleCache);
-			}
-			else
-				return importCompletion(beforeTokens, kind, moduleCache);
-		}
+		// if (beforeTokens[$ - 1] == TOK.leftParentheses || beforeTokens[$ - 1] == TOK.leftBracket
+		// 	|| beforeTokens[$ - 1] == TOK.comma)
+		// {
+		// 	immutable size_t end = goBackToOpenParen(beforeTokens);
+		// 	if (end != size_t.max)
+		// 		return parenCompletion(beforeTokens[0 .. end], tokenArray,
+		// 			request.cursorPosition, moduleCache);
+		// }
+		// else
+		// {
+		// 	ImportKind kind = determineImportKind(beforeTokens);
+		// 	if (kind == ImportKind.neither)
+		// 	{
+		// 		if (beforeTokens.isUdaExpression)
+		// 			beforeTokens = beforeTokens[$-1 .. $];
+		// 		return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
+		// 			moduleCache);
+		// 	}
+		// 	else
+		// 		return importCompletion(beforeTokens, kind, moduleCache);
+		// }
+		return null; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
-	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache);
+	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, rootModule);
 }
 
 /**
@@ -172,19 +181,16 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	// an identifier.
 	IdType significantTokenType;
 
-	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
+	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TOK.identifier)
 	{
 		// Set partial to the slice of the identifier between the beginning
 		// of the identifier and the cursor. This improves the completion
 		// responses when the cursor is in the middle of an identifier instead
 		// of at the end
 		auto t = beforeTokens[$ - 1];
-		// info("\n\n");
-		// info(t);
-		// info("\n\n");
-		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.text.length)
+		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.ptr.length)
 		{
-			partial = t.text[0 .. cursorPosition - t.index];
+			partial = t.ptr[0 .. cursorPosition - t.index];
 			// issue 442 - prevent `partial` to start in the middle of a MBC
 			// since later there's a non-nothrow call to `toUpper`
 			import std.utf : validate, UTFException;
@@ -196,48 +202,39 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 				partial = "";
 			}
 		}
-		// info("\n\nblaaaaaaaaaaaa");
-		// info(partial);
-		// info("\n\n");
-		significantTokenType = partial.length ? tok!"identifier" : tok!"";
+		significantTokenType = partial.length ? TOK.identifier : TOK.max_;
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
-		significantTokenType = beforeTokens[$ - 2].type;
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TOK.dot)
+		significantTokenType = beforeTokens[$ - 2].value;
 	else
 		return response;
 
 
 	switch (significantTokenType)
 	{
-	mixin(STRING_LITERAL_CASES);
-		foreach (symbol; arraySymbols)
-			response.completions ~= makeSymbolCompletionInfo(symbol, symbol.kind);
-		response.completionType = CompletionType.identifiers;
+	mixin(STRING_LITERAL_CASES); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// foreach (symbol; arraySymbols)
+		// 	response.completions ~= makeSymbolCompletionInfo(symbol, symbol.kind);
+		// response.completionType = CompletionType.identifiers;
 		break;
 	mixin(TYPE_IDENT_CASES);
-	case tok!")":
-	case tok!"]":
-		auto allocator = scoped!(ASTAllocator)();
-		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, cursorPosition, rootModule);
+	case TOK.rightParentheses:
+	case TOK.rightBracket:
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
-	case tok!":":
-	case tok!"(":
-	case tok!"[":
-	case tok!"{":
-	case tok!";":
-	case tok!"}":
-	case tok!",":
-		auto allocator = scoped!(ASTAllocator)();
-		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, 1, rootModule);
+	case TOK.colon:
+	case TOK.leftParentheses:
+	case TOK.leftBracket:
+	case TOK.leftCurly:
+	case TOK.semicolon:
+	case TOK.rightCurly:
+	case TOK.comma:
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, 1, rootModule);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			1, CompletionType.identifiers, false, partial);

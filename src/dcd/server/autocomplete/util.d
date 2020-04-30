@@ -31,6 +31,7 @@ import dmd.dsymbol;
 import dmd.dscope;
 import dmd.dmodule;
 import dmd.tokens;
+import dmd.lexer;
 
 enum ImportKind : ubyte
 {
@@ -116,9 +117,25 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 	// tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
 	// auto sortedTokens = assumeSorted(tokenArray);
 	// return sortedTokens.lowerBound(cast(size_t) cursorPosition);
-	auto lexer = new Lexer();
 
-	return null;/////////////////////////////////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	auto lexer = new Lexer(rootModule.srcfile.toChars(),
+							(cast(const(char)[])rootModule.srcBuffer.data).ptr,
+							0,
+							rootModule.srcBuffer.data.length,
+							false,
+							false);
+
+	// sa nu am probleme aici cu comentariile, ca se facea diferit in libdparse!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    while (lexer.nextToken()) {
+        tokenArray ~= lexer.token;
+
+        if (lexer.token.value == TOK.endOfFile) break;
+    }
+
+	const(Token)[] beforeTokens;
+	// auto sortedTokens = assumeSorted(tokenArray);
+	// return sortedTokens.lowerBound(cast(size_t) cursorPosition);
+	return beforeTokens;
 }
 
 /**
@@ -410,39 +427,67 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	return symbols;
 }
 
+	// case tok!"int":
+	// case tok!"uint":
+	// case tok!"long":
+	// case tok!"ulong":
+	// case tok!"char":
+	// case tok!"wchar":
+	// case tok!"dchar":
+	// case tok!"bool":
+	// case tok!"byte":
+	// case tok!"ubyte":
+	// case tok!"short":
+	// case tok!"ushort":
+	// case tok!"cent":
+	// case tok!"ucent":
+	// case tok!"float":
+	// case tok!"ifloat":
+	// case tok!"cfloat":
+	// case tok!"idouble":
+	// case tok!"cdouble":
+	// case tok!"double":
+	// case tok!"real":
+	// case tok!"ireal":
+	// case tok!"creal":
+	// case tok!"this":
+	// case tok!"super":
+	// case tok!"identifier":
 enum TYPE_IDENT_CASES = q{
-	case tok!"int":
-	case tok!"uint":
-	case tok!"long":
-	case tok!"ulong":
-	case tok!"char":
-	case tok!"wchar":
-	case tok!"dchar":
-	case tok!"bool":
-	case tok!"byte":
-	case tok!"ubyte":
-	case tok!"short":
-	case tok!"ushort":
-	case tok!"cent":
-	case tok!"ucent":
-	case tok!"float":
-	case tok!"ifloat":
-	case tok!"cfloat":
-	case tok!"idouble":
-	case tok!"cdouble":
-	case tok!"double":
-	case tok!"real":
-	case tok!"ireal":
-	case tok!"creal":
-	case tok!"this":
-	case tok!"super":
-	case tok!"identifier":
+	case TOK.int8:
+	case TOK.uns8:
+	case TOK.int16:
+	case TOK.uns16:
+	case TOK.int32:
+	case TOK.uns32:
+	case TOK.int64:
+	case TOK.uns64:
+	case TOK.int128:
+	case TOK.uns128:
+	case TOK.float32:
+	case TOK.float64:
+	case TOK.float80:
+	case TOK.bool_:
+	case TOK.char_:
+	case TOK.wchar_:
+	case TOK.dchar_:
+	case TOK.imaginary32:
+	case TOK.imaginary64:
+	case TOK.imaginary80:
+	case TOK.complex32:
+	case TOK.complex64:
+	case TOK.complex80:
+	case TOK.this_:
+	case TOK.super_:
+	case TOK.identifier:
 };
 
+	// case tok!"stringLiteral":
+	// case tok!"wstringLiteral":
+	// case tok!"dstringLiteral":
 enum STRING_LITERAL_CASES = q{
-	case tok!"stringLiteral":
-	case tok!"wstringLiteral":
-	case tok!"dstringLiteral":
+	case TOK.string_:
+    case TOK.hexadecimalString:
 };
 
 enum TYPE_IDENT_AND_LITERAL_CASES = TYPE_IDENT_CASES ~ STRING_LITERAL_CASES;
