@@ -42,8 +42,21 @@ import dcd.common.socket;
 import dcd.server.autocomplete;
 import dcd.server.server;
 
+import dmd.frontend;
+import dmd.dmodule;
+import dmd.globals;
+import dmd.arraytypes;
+import dmd.root.filename;
+import dmd.root.string;
+import dmd.identifier;
+
 int main(string[] args)
 {
+	global.path = new Strings();
+    // global.path.push("/home/cristian/dlang/phobos");
+    global.path.push("/home/cristian/dlang/druntime/import"); // !!!!!!!!!
+	initDMD();
+
 	try
 	{
 		return runServer(args);
@@ -52,6 +65,10 @@ int main(string[] args)
 	{
 		stderr.writeln(e);
 		return 1;
+	}
+	finally
+	{
+		deinitializeDMD();
 	}
 }
 
@@ -245,7 +262,7 @@ int runServer(string[] args)
 		}
 
 		AutocompleteRequest request;
-		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
+		// msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request); !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		string bla;
 		foreach(ubyte c; request.sourceCode) {
@@ -289,7 +306,10 @@ int runServer(string[] args)
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			s.sendResponse(complete(request, cache));
+
+			Module m = createModule(request.fileName.ptr);
+			m.read(Loc.initial); // sa nu fie probs aici !!!!!!!!!!!!!!!!!!!!
+			s.sendResponse(complete(request, m));
 		}
 		else if (request.kind & RequestKind.doc)
 		{
@@ -385,4 +405,103 @@ options:
     --socketFile FILENAME
         Use the given FILENAME as the path to the UNIX domain socket. Using
         this switch is an error on Windows.`, programName);
+}
+
+Module createModule(const char *file)
+{
+    const(char)[] name;
+    version (Windows)
+    {
+        file = toWinPath(file);
+    }
+    const(char)[] p = file.toDString();
+    p = FileName.name(p); // strip path
+    const(char)[] ext = FileName.ext(p);
+    if (ext)
+    {
+        /* Deduce what to do with a file based on its extension */
+        if (FileName.equals(ext, global.obj_ext))
+        {
+            global.params.objfiles.push(file);
+            return null;
+        }
+        if (FileName.equals(ext, global.lib_ext))
+        {
+            global.params.libfiles.push(file);
+            return null;
+        }
+        static if (TARGET.Linux || TARGET.OSX || TARGET.FreeBSD
+                || TARGET.OpenBSD || TARGET.Solaris || TARGET.DragonFlyBSD)
+        {
+            if (FileName.equals(ext, global.dll_ext))
+            {
+                global.params.dllfiles.push(file);
+                return null;
+            }
+        }
+        if (ext == global.ddoc_ext)
+        {
+            global.params.ddocfiles.push(file);
+            return null;
+        }
+        if (FileName.equals(ext, global.json_ext))
+        {
+            global.params.doJsonGeneration = true;
+            global.params.jsonfilename = file.toDString;
+            return null;
+        }
+        if (FileName.equals(ext, global.map_ext))
+        {
+            global.params.mapfile = file.toDString;
+            return null;
+        }
+        static if (TARGET.Windows)
+        {
+            if (FileName.equals(ext, "res"))
+            {
+                global.params.resfile = file.toDString;
+                return null;
+            }
+            if (FileName.equals(ext, "def"))
+            {
+                global.params.deffile = file.toDString;
+                return null;
+            }
+            if (FileName.equals(ext, "exe"))
+            {
+                assert(0); // should have already been handled
+            }
+        }
+        /* Examine extension to see if it is a valid
+         * D source file extension
+         */
+        if (FileName.equals(ext, global.mars_ext) || FileName.equals(ext, global.hdr_ext) || FileName.equals(ext, "dd"))
+        {
+            name = FileName.removeExt(p);
+            if (!name.length || name == ".." || name == ".")
+            {
+            Linvalid:
+                error(Loc.initial, "invalid file name '%s'", file);
+                fatal();
+            }
+        }
+        else
+        {
+            error(Loc.initial, "unrecognized file extension %.*s", cast(int)ext.length, ext.ptr);
+            fatal();
+        }
+    }
+    else
+    {
+        name = p;
+        if (!name.length)
+            goto Linvalid;
+    }
+    /* At this point, name is the D source file name stripped of
+     * its path and extension.
+     */
+    auto id = Identifier.idPool(name);
+    auto m = new Module(file.toDString, id, global.params.doDocComments, global.params.doHdrGeneration);
+
+    return m;
 }
