@@ -34,6 +34,8 @@ import dcd.common.messages;
 import dcd.common.dcd_version;
 import dcd.common.socket;
 
+import dmd.globals;
+
 int main(string[] args)
 {
 	try
@@ -53,7 +55,7 @@ int runClient(string[] args)
 {
 	sharedLog.fatalHandler = () {};
 
-	size_t cursorPos = size_t.max;
+	Loc cursorPos = null;
 	string[] addedImportPaths;
 	string[] removedImportPaths;
 	ushort port;
@@ -159,7 +161,7 @@ int runClient(string[] args)
 		request.kind |= adding ? RequestKind.addImport : RequestKind.removeImport;
 		request.importPaths = (adding ? addedImportPaths : removedImportPaths)
 			.map!(a => absolutePath(a)).array;
-		if (cursorPos == size_t.max)
+		if (cursorPos == null)
 		{
 			Socket socket = createSocket(socketFile, port);
 			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
@@ -178,7 +180,7 @@ int runClient(string[] args)
 		printImportList(response);
 		return 0;
 	}
-	else if (search == null && cursorPos == size_t.max)
+	else if (search == null && cursorPos == null)
 	{
 		// cursor position is a required argument
 		printHelp(args[0]);

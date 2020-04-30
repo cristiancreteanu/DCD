@@ -36,6 +36,7 @@ import dmd.dsymbol;
 import dmd.dscope;
 import dmd.dmodule;
 import dmd.tokens;
+import dmd.globals;
 
 /**
  * Handles autocompletion
@@ -75,13 +76,13 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 	}
 
 	const bool dotId = beforeTokens.length >= 2 &&
-		beforeTokens[$-1] == TOK.identifier && beforeTokens[$-2] == TOK.dot;
+		beforeTokens[$-1].value == TOK.identifier && beforeTokens[$-2].value == TOK.dot;
 
 	// detects if the completion request uses the current module `ModuleDeclaration`
 	// as access chain. In this case removes this access chain, and just keep the dot
 	// because within a module semantic is the same (`myModule.stuff` -> `.stuff`).
-	if (tokenArray.length >= 3 && tokenArray[0] == TOK.module_ && beforeTokens.length &&
-		(beforeTokens[$-1] == TOK.dot || dotId))
+	if (tokenArray.length >= 3 && tokenArray[0].value == TOK.module_ && beforeTokens.length &&
+		(beforeTokens[$-1].value == TOK.dot || dotId))
 	{
 		const moduleDeclEndIndex = tokenArray.countUntil!(a => a.value == TOK.semicolon);
 		bool beginsWithModuleName;
@@ -121,14 +122,15 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 
 		// replace the "before tokens" with a pattern making the remaining
 		// parts of the completion process think that it's a "Module Scope Operator".
-		if (beginsWithModuleName)
-		{
-			if (dotId)
-				beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!"."),
-					cast(const) beforeTokens[$-1]]);
-			else
-				beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!".")]);
-		}
+
+		// if (beginsWithModuleName) // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// {
+		// 	if (dotId)
+		// 		beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!"."),
+		// 			cast(const) beforeTokens[$-1]]);
+		// 	else
+		// 		beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!".")]);
+		// }
 	}
 
 	if (beforeTokens.length >= 2)
@@ -154,7 +156,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		// 	else
 		// 		return importCompletion(beforeTokens, kind, moduleCache);
 		// }
-		return null; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		AutocompleteResponse response;
+		return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
 	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, rootModule);
 }
@@ -169,7 +172,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
  *     the autocompletion response
  */
 AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
-	size_t cursorPosition, ref Module rootModule)
+	Loc cursorPosition, ref Module rootModule)
 {
 	AutocompleteResponse response;
 
@@ -179,18 +182,21 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 
 	// Type of the token before the dot, or identifier if the cursor was at
 	// an identifier.
-	IdType significantTokenType;
+	TOK significantTokenType;
 
-	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TOK.identifier)
+	if (beforeTokens.length >= 1 && beforeTokens[$ - 1].value == TOK.identifier)
 	{
 		// Set partial to the slice of the identifier between the beginning
 		// of the identifier and the cursor. This improves the completion
 		// responses when the cursor is in the middle of an identifier instead
 		// of at the end
 		auto t = beforeTokens[$ - 1];
-		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.ptr.length)
+
+		import core.stdc.string : strlen;
+
+		if (cursorPosition >= t.loc && cursorPosition.charnum - t.loc.charnum <= strlen(t.ptr)) // sa fie bine aici cu colnum???
 		{
-			partial = t.ptr[0 .. cursorPosition - t.index];
+			partial = to!string(t.ptr[0 .. cursorPosition.charnum - t.loc.charnum]);
 			// issue 442 - prevent `partial` to start in the middle of a MBC
 			// since later there's a non-nothrow call to `toUpper`
 			import std.utf : validate, UTFException;
@@ -205,7 +211,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		significantTokenType = partial.length ? TOK.identifier : TOK.max_;
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TOK.dot)
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1].value == TOK.dot)
 		significantTokenType = beforeTokens[$ - 2].value;
 	else
 		return response;
@@ -243,6 +249,39 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		break;
 	}
 	return response;
+}
+
+/**
+
+*/
+ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
+	Loc cursorPosition, ref Module rootModule)
+{
+	// Module m = parseModuleForAutocomplete(tokens, internString("stdin"),
+	// 	parseAllocator, cursorPosition);
+
+	// auto first = scoped!FirstPass(m, internString("stdin"), symbolAllocator,
+	// 	symbolAllocator, true, &cache);
+	// first.run();
+
+	// secondPass(first.rootSymbol, first.moduleScope, cache);
+	// auto r = first.rootSymbol.acSymbol;
+	// typeid(SemanticSymbol).destroy(first.rootSymbol);
+	// return ScopeSymbolPair(r, first.moduleScope);
+
+	return ScopeSymbolPair(null, null);
+}
+
+struct ScopeSymbolPair
+{
+	void destroy()
+	{
+		typeid(Dsymbol).destroy(symbol);
+		typeid(Scope).destroy(scope_);
+	}
+
+	Dsymbol* symbol;
+	Scope* scope_;
 }
 
 /**
@@ -504,7 +543,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
  *
  */
 void setCompletions(T)(ref AutocompleteResponse response,
-	Scope* completionScope, T tokens, size_t cursorPosition,
+	Scope* completionScope, T tokens, Loc cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
 	static void addSymToResponse(const(Dsymbol)* s, ref AutocompleteResponse r, string p,
@@ -512,59 +551,59 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		if (circularGuard.canFind(cast(size_t) s))
 			return;
-		foreach (sym; s.opSlice())
-		{
-			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
-				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
-				&& !r.completions.canFind!(a => a.identifier == sym.name)
-				&& sym.name[0] != '*'
-				&& mightBeRelevantInCompletionScope(sym, completionScope))
-			{
-				r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
-			}
-			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
-				addSymToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
-		}
+		// foreach (sym; s.opSlice()) // aici trebuie sa iau toate partile simbolului (parametri, campuri din struct/enum)
+		// {
+		// 	if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
+		// 		&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
+		// 		&& !r.completions.canFind!(a => a.identifier == sym.name)
+		// 		&& sym.name[0] != '*'
+		// 		&& mightBeRelevantInCompletionScope(sym, completionScope))
+		// 	{
+		// 		r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
+		// 	}
+		// 	if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
+		// 		addSymToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
+		// }
 	}
 
 	// Handle the simple case where we get all symbols in scope and filter it
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
-	{
-		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
-		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-				&& toUpper(a.name.data).startsWith(toUpper(partial))
-				&& mightBeRelevantInCompletionScope(a, completionScope)))
-		{
-			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
-		}
-		response.completionType = CompletionType.identifiers;
+	{//!!!!!!!!!!!!!!!!!!
+		// auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
+		// 		&& toUpper(a.name.data).startsWith(toUpper(partial))
+		// 		&& mightBeRelevantInCompletionScope(a, completionScope)))
+		// {
+		// 	response.completions ~= makeSymbolCompletionInfo(s, s.kind);
+		// }
+		// response.completionType = CompletionType.identifiers;
 		return;
 	}
 	// "Module Scope Operator" : filter module decls
-	else if (tokens.length == 1 && tokens[0] == tok!".")
-	{
-		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
-		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-				// TODO: for now since "module.partial" is transformed into ".partial"
-				// we cant put the imported symbols that should be in the list.
-				&& a.kind != CompletionKind.importSymbol
-				&& a.kind != CompletionKind.dummy
-				&& a.symbolFile == "stdin"
-				&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
-					|| partial is null)
-				&& mightBeRelevantInCompletionScope(a, completionScope)))
-		{
-			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
-		}
-		response.completionType = CompletionType.identifiers;
+	else if (tokens.length == 1 && tokens[0].value == /*tok!"."*/ TOK.dot)
+	{//!!!!!!!!!!!!!!!!!!!!
+		// auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
+		// 		// TODO: for now since "module.partial" is transformed into ".partial"
+		// 		// we cant put the imported symbols that should be in the list.
+		// 		&& a.kind != CompletionKind.importSymbol
+		// 		&& a.kind != CompletionKind.dummy
+		// 		&& a.symbolFile == "stdin"
+		// 		&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
+		// 			|| partial is null)
+		// 		&& mightBeRelevantInCompletionScope(a, completionScope)))
+		// {
+		// 	response.completions ~= makeSymbolCompletionInfo(s, s.kind);
+		// }
+		// response.completionType = CompletionType.identifiers;
 		return;
 	}
 
 	if (tokens.length == 0)
 		return;
 
-	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+	Dsymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
 	if (symbols.length == 0)

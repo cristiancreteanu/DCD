@@ -22,6 +22,8 @@ import std.socket;
 import msgpack;
 import core.time : dur;
 
+import dmd.globals;
+
 /**
  * The type of completion list being returned
  */
@@ -178,7 +180,7 @@ struct AutocompleteRequest
 	/**
 	 * The cursor position
 	 */
-	size_t cursorPosition;
+	Loc cursorPosition;
 
 	/**
 	 * Name of symbol searched for
