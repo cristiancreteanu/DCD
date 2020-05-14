@@ -22,8 +22,6 @@ import std.socket;
 import msgpack;
 import core.time : dur;
 
-import dmd.globals;
-
 /**
  * The type of completion list being returned
  */
@@ -49,75 +47,6 @@ enum CompletionType : string
 	 * The response contains documentation comments for the symbol.
 	 */
 	ddoc = "ddoc",
-}
-
-/**
- * Identifies the kind of the item in an identifier completion list
- */
-enum CompletionKind : char
-{
-	/// Invalid completion kind. This is used internally and will never
-	/// be returned in a completion response.
-	dummy = '?',
-
-	/// Import symbol. This is used internally and will never
-	/// be returned in a completion response.
-	importSymbol = '*',
-
-	/// With symbol. This is used internally and will never
-	/// be returned in a completion response.
-	withSymbol = 'w',
-
-	/// class names
-	className = 'c',
-
-	/// interface names
-	interfaceName = 'i',
-
-	/// structure names
-	structName = 's',
-
-	/// union name
-	unionName = 'u',
-
-	/// variable name
-	variableName = 'v',
-
-	/// member variable
-	memberVariableName = 'm',
-
-	/// keyword, built-in version, scope statement
-	keyword = 'k',
-
-	/// function or method
-	functionName = 'f',
-
-	/// enum name
-	enumName = 'g',
-
-	/// enum member
-	enumMember = 'e',
-
-	/// package name
-	packageName = 'P',
-
-	/// module name
-	moduleName = 'M',
-
-	/// alias name
-	aliasName = 'l',
-
-	/// template name
-	templateName = 't',
-
-	/// mixin template name
-	mixinTemplateName = 'T',
-
-	/// variadic template parameter
-	variadicTmpParam = 'p',
-
-	/// type template parameter when no constraint
-	typeTmpParam = 'h',
 }
 
 /**
@@ -180,7 +109,7 @@ struct AutocompleteRequest
 	/**
 	 * The cursor position
 	 */
-	Loc cursorPosition;
+	size_t cursorPosition;
 
 	/**
 	 * Name of symbol searched for

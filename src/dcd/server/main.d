@@ -42,21 +42,20 @@ import dcd.common.socket;
 import dcd.server.autocomplete;
 import dcd.server.server;
 
-import dmd.frontend;
 import dmd.dmodule;
 import dmd.globals;
-import dmd.arraytypes;
+import dmd.root.string : toDString;
 import dmd.root.filename;
-import dmd.root.string;
 import dmd.identifier;
+import dmd.frontend;
+import dmd.errors : diagnosticHandler;
+import dmd.console;
+
+import core.stdc.stdarg;
+
 
 int main(string[] args)
 {
-	global.path = new Strings();
-    // global.path.push("/home/cristian/dlang/phobos");
-    global.path.push("/home/cristian/dlang/druntime/import"); // !!!!!!!!!
-	initDMD();
-
 	try
 	{
 		return runServer(args);
@@ -65,10 +64,6 @@ int main(string[] args)
 	{
 		stderr.writeln(e);
 		return 1;
-	}
-	finally
-	{
-		deinitializeDMD();
 	}
 }
 
@@ -92,6 +87,20 @@ int runServer(string[] args)
 	}
 
 	sharedLog.fatalHandler = () {};
+
+	global.path = new Strings();
+    // global.path.push("/home/cristian/dlang/phobos");
+    global.path.push("/home/cristian/dlang/druntime/import");
+
+	// diagnosticHandler = (const ref Loc location,
+    //                         Color headerColor,
+    //                         const(char)* header,
+    //                         const(char)* messageFormat,
+    //                         va_list args,
+    //                         const(char)* prefix1,
+    //                         const(char)* prefix2) => true;
+	initDMD();
+
 
 	try
 	{
@@ -192,8 +201,9 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	// ModuleCache cache = ModuleCache(new ASTAllocator);
-	// cache.addImportPaths(importPaths);
+	Module cache = createModule("/home/cristian/dlang/Graduation/correct.d");
+	cache.read(Loc.initial);
+	// cache.importAll(null);
 	// infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
@@ -262,13 +272,7 @@ int runServer(string[] args)
 		}
 
 		AutocompleteRequest request;
-		// msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request); !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-		string bla;
-		foreach(ubyte c; request.sourceCode) {
-			bla ~= to!char(c);
-		}
-		writeln(bla);
+		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 
 		if (request.kind & RequestKind.clearCache)
 		{
@@ -300,32 +304,32 @@ int runServer(string[] args)
 		{
 			AutocompleteResponse response;
 			// response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
-			// info("Returning import path list");
+			info("Returning import path list");
 			s.sendResponse(response);
 		}
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-
-			Module m = createModule(request.fileName.ptr);
-			m.read(Loc.initial); // sa nu fie probs aici !!!!!!!!!!!!!!!!!!!!
-			s.sendResponse(complete(request, m));
+			s.sendResponse(complete(request, cache));
 		}
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			// s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
+			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
 		}
-		// else if (request.kind & RequestKind.symbolLocation)
-		// 	s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
-		// else if (request.kind & RequestKind.search)
-		// 	s.sendResponse(symbolSearch(request, cache));
-		// else if (request.kind & RequestKind.localUse)
-		// 	s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+		else if (request.kind & RequestKind.symbolLocation)
+			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
+		else if (request.kind & RequestKind.search)
+			s.sendResponse(symbolSearch(request, cache));
+		else if (request.kind & RequestKind.localUse)
+			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
 
 		sw.stop();
 		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
 	}
+
+	deinitializeDMD();
+
 	return 0;
 }
 
