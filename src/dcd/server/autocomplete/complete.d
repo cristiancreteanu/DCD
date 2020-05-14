@@ -279,6 +279,8 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	// Module m = parseModuleForAutocomplete(tokens, internString("stdin"),
 	// 	parseAllocator, cursorPosition);
 
+	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
+
 	// auto first = scoped!FirstPass(m, internString("stdin"), symbolAllocator,
 	// 	symbolAllocator, true, &cache);
 	// first.run();
@@ -287,7 +289,6 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	// auto r = first.rootSymbol.acSymbol;
 	// typeid(SemanticSymbol).destroy(first.rootSymbol);
 	// return ScopeSymbolPair(r, first.moduleScope);
-	rootModule.parse();
 
 	cPos = cursorPosition;
 	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
@@ -418,89 +419,89 @@ body
 
 	return response;
 
-	// if (beforeTokens.length <= 2)
-	// 	return response;
+	if (beforeTokens.length <= 2)
+		return response;
 
-	// size_t i = beforeTokens.length - 1;
+	size_t i = beforeTokens.length - 1;
 
-	// if (kind == ImportKind.normal)
-	// {
+	if (kind == ImportKind.normal)
+	{
 
-	// 	while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import"
-	// 			&& beforeTokens[i].type != tok!"=" )
-	// 		i--;
-	// 	setImportCompletions(beforeTokens[i .. $], response, rootModule);
-	// 	return response;
-	// }
+		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import"
+				&& beforeTokens[i].type != tok!"=" )
+			i--;
+		setImportCompletions(beforeTokens[i .. $], response, rootModule);
+		return response;
+	}
 
-	// loop: while (true) switch (beforeTokens[i].type)
-	// {
-	// case tok!"identifier":
-	// case tok!"=":
-	// case tok!",":
-	// case tok!".":
-	// 	i--;
-	// 	break;
-	// case tok!":":
-	// 	i--;
-	// 	while (beforeTokens[i].type == tok!"identifier" || beforeTokens[i].type == tok!".")
-	// 		i--;
-	// 	break loop;
-	// default:
-	// 	break loop;
-	// }
+	loop: while (true) switch (beforeTokens[i].type)
+	{
+	case tok!"identifier":
+	case tok!"=":
+	case tok!",":
+	case tok!".":
+		i--;
+		break;
+	case tok!":":
+		i--;
+		while (beforeTokens[i].type == tok!"identifier" || beforeTokens[i].type == tok!".")
+			i--;
+		break loop;
+	default:
+		break loop;
+	}
 
-	// size_t j = i;
-	// loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
-	// {
-	// case tok!":": break loop2;
-	// default: j++; break;
-	// }
+	size_t j = i;
+	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
+	{
+	case tok!":": break loop2;
+	default: j++; break;
+	}
 
-	// if (i >= j)
-	// {
-	// 	warning("Malformed import statement");
-	// 	return response;
-	// }
+	if (i >= j)
+	{
+		warning("Malformed import statement");
+		return response;
+	}
 
-	// immutable string path = beforeTokens[i + 1 .. j]
-	// 	.filter!(token => token.type == tok!"identifier")
-	// 	.map!(token => cast() token.text)
-	// 	.joiner(dirSeparator)
-	// 	.text();
+	immutable string path = beforeTokens[i + 1 .. j]
+		.filter!(token => token.type == tok!"identifier")
+		.map!(token => cast() token.text)
+		.joiner(dirSeparator)
+		.text();
 
-	// string resolvedLocation = moduleCache.resolveImportLocation(path);
-	// if (resolvedLocation is null)
-	// {
-	// 	warning("Could not resolve location of ", path);
-	// 	return response;
-	// }
-	// auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
+	string resolvedLocation = moduleCache.resolveImportLocation(path);
+	if (resolvedLocation is null)
+	{
+		warning("Could not resolve location of ", path);
+		return response;
+	}
+	auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
 
-	// import containers.hashset : HashSet;
-	// HashSet!string h;
+	import containers.hashset : HashSet;
+	HashSet!string h;
 
-	// void addSymbolToResponses(const(Dsymbol)* sy)
-	// {
-	// 	auto a = Dsymbol(sy.name);
-	// 	if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
-	// 			/*&& !sy.skipOver*/ && sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
-	// 			/*&& isPublicCompletionKind(sy.kind)*/) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// 	{
-	// 		response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
-	// 		h.insert(sy.name);
-	// 	}
-	// }
+	void addSymbolToResponses(const(Dsymbol)* sy)
+	{
+		auto a = Dsymbol(sy.name);
+		if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
+				/*&& !sy.skipOver*/ && sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
+				/*&& isPublicCompletionKind(sy.kind)*/) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		{
+			response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
+			h.insert(sy.name);
+		}
+	}
 
-	// foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
-	// {
-	// 	if (s.kind == CompletionKind.importSymbol && s.type !is null)
-	// 		foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
-	// 			addSymbolToResponses(sy);
-	// 	else
-	// 		addSymbolToResponses(s);
-	// }
-	// response.completionType = CompletionType.identifiers;
+	foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
+	{
+		if (s.kind == CompletionKind.importSymbol && s.type !is null)
+			foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
+				addSymbolToResponses(sy);
+		else
+			addSymbolToResponses(s);
+	}
+	response.completionType = CompletionType.identifiers;
 	return response;
 }
 
