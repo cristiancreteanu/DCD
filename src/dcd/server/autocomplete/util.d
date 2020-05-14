@@ -37,6 +37,8 @@ import dmd.declaration;
 import dmd.dimport;
 import dmd.func;
 
+import std.stdio : writeln;
+
 enum ImportKind : ubyte
 {
 	selective,
@@ -118,10 +120,6 @@ bool shouldSwapWithType(CompletionType completionType,
 auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 	out const(Token)[] tokenArray, Module rootModule)
 {
-	// tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
-	// auto sortedTokens = assumeSorted(tokenArray);
-	// return sortedTokens.lowerBound(cast(size_t) cursorPosition);
-
 	auto lexer = new Lexer(rootModule.srcfile.toChars(),
 							(cast(const(char)[])rootModule.srcBuffer.data).ptr,
 							0,
@@ -137,8 +135,13 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
     }
 
 	const(Token)[] beforeTokens;
-	// auto sortedTokens = assumeSorted(tokenArray);
-	// return sortedTokens.lowerBound(cast(size_t) cursorPosition);
+	foreach (tok; tokenArray) {
+		if (tok.loc >= cursorPosition) {
+			break;
+		}
+		writeln(tok.loc);
+		beforeTokens ~= tok;
+	}
 	return beforeTokens;
 }
 
@@ -837,8 +840,12 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(Dsymbol symbol)
 	// // else
 	// // 	definition = symbol.callTip; // de implementat calltip???????????????????????????????????????????????????????????
 
+
 	// // TODO: definition strings could include more information, like on classes inheritance
 	// return AutocompleteResponse.Completion(symbol.ident.toString(), kind, definition,
 	// 	symbol.getModule().srcfile.toString(), symbol.loc, symbol.comment);
-	return AutocompleteResponse.Completion();
+	import std.conv;
+
+	return AutocompleteResponse.Completion(to!string(symbol.ident.toString()), 0, null,
+		to!string(symbol.getModule().srcfile.toString()), 0, to!string(symbol.comment));
 }

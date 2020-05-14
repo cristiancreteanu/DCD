@@ -27,6 +27,7 @@ import std.process: environment;
 import std.stdio: File;
 import std.stdio: KeepTerminator;
 
+
 /// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
 
@@ -95,6 +96,6 @@ string[] loadConfiguredImportDirs()
 		.filter!(a => a.length > 0 && a[0] != '#')
 		.map!(a => a.idup)
 		.map!(expandEnvVars)
-		// .filter!(a => existanceCheck(a)) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// .filter!(a => existanceCheck(a))
 		.array();
 }

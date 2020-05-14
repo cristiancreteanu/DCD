@@ -41,6 +41,12 @@ import dmd.statement;
 import dmd.semantic2;
 import dmd.semantic3;
 import dmd.dsymbolsem;
+import dmd.compiler;
+
+
+import std.stdio : writeln;
+
+Loc cursorLoc = Loc("", 51, 18); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -54,7 +60,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-		request.cursorPosition, tokenArray, rootModule);
+		cursorLoc, tokenArray, rootModule);
 
 	// allows to get completion on keyword, typically "is"
 	/*
@@ -155,7 +161,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		// 	{
 		// 		if (beforeTokens.isUdaExpression)
 		// 			beforeTokens = beforeTokens[$-1 .. $];
-				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
+		writeln("1111111111111");
+				return dotCompletion(beforeTokens, tokenArray, cursorLoc,
 					rootModule);
 		// 	}
 		// 	else
@@ -164,7 +171,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		// AutocompleteResponse response;
 		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
-	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, rootModule);
+	return dotCompletion(beforeTokens, tokenArray, cursorLoc, rootModule);
 }
 
 /**
@@ -189,6 +196,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	// an identifier.
 	TOK significantTokenType;
 
+	writeln(beforeTokens[$ - 2]);
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1].value == TOK.identifier)
 	{
 		// Set partial to the slice of the identifier between the beginning
@@ -199,7 +207,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 
 		import core.stdc.string : strlen;
 
-		if (cursorPosition >= t.loc && cursorPosition.charnum - t.loc.charnum <= strlen(t.ptr)) // sa fie bine aici cu colnum???
+		// !!!!!!!!!!!!!!!!!!
+		if ((cursorPosition.linnum > t.loc.linnum || (cursorPosition.linnum == t.loc.linnum && cursorPosition.charnum >= t.loc.charnum))
+				&& cursorPosition.charnum - t.loc.charnum <= strlen(t.ptr)) // sa fie bine aici cu colnum???
 		{
 			partial = to!string(t.ptr[0 .. cursorPosition.charnum - t.loc.charnum]);
 			// issue 442 - prevent `partial` to start in the middle of a MBC
@@ -233,6 +243,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
+		writeln("33333333333333333333333333");
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -262,6 +273,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	Loc cursorPosition, ref Module rootModule)
 {
+	writeln("22222222222222222");
 	// Module m = parseModuleForAutocomplete(tokens, internString("stdin"),
 	// 	parseAllocator, cursorPosition);
 
@@ -276,7 +288,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	rootModule.parse();
 
 	Scope *scp;
-	onStatementSemanticDone = delegate void(Statement s, Scope *sc) {
+	Compiler.onStatementSemanticStart = delegate void(Statement s, Scope *sc) {
         if (s.loc.linnum == cursorPosition.linnum) {
             scp = sc;
         }
@@ -293,6 +305,8 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	rootModule.semantic3(null);
 	Module.runDeferredSemantic3();
+
+	writeln(scp);
 
 	return ScopeSymbolPair(null, scp);
 }
@@ -604,6 +618,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				}
 			scp = scp.enclosing;
 		}
+
+		writeln(currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))));
 
 		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 		// 		&& toUpper(a.name.data).startsWith(toUpper(partial))

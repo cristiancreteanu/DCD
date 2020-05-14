@@ -13,7 +13,10 @@
     "emsi_containers": "~>0.8.0-alpha.15"
   },
   "subPackages": ["common"],
-  "versions": ["built_with_dub"],
+  "stringImportPaths" : [
+    "bin"
+  ],
+  "versions": ["built_with_dub", "callback_API"],
   "configurations": [
     {
       "name": "library",
