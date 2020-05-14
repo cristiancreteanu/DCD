@@ -267,6 +267,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	return response;
 }
 
+Scope *scp;
+Loc cPos;
 /**
 
 */
@@ -287,10 +289,11 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	// return ScopeSymbolPair(r, first.moduleScope);
 	rootModule.parse();
 
-	Scope *scp;
-	Compiler.onStatementSemanticStart = delegate void(Statement s, Scope *sc) {
-        if (s.loc.linnum == cursorPosition.linnum) {
-            scp = sc;
+	cPos = cursorPosition;
+	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
+        if (s.loc.linnum == cPos.linnum) {
+            sc.setNoFree();
+			scp = sc;
         }
 	};
 
