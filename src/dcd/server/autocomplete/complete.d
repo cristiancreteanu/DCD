@@ -586,7 +586,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 		partial = tokens[$ - 1].text;
 		tokens = tokens[0 .. $ - 1];
 	}
-	auto moduleParts = tokens.filter!(a => a.value == TOK.identifier).map!("a.text").array();
+	auto moduleParts = tokens.filter!(a => a.value == TOK.identifier).map!("a.ident.toString()").array();
 	string path = buildPath(moduleParts);
 
 	bool found = false;
@@ -689,7 +689,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			scp = scp.enclosing;
 		}
 
-		writeln(currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))));
+		// writeln(currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))));
 
 		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 		// 		&& toUpper(a.name.data).startsWith(toUpper(partial))
