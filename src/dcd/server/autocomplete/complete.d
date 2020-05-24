@@ -172,7 +172,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			else
 			{
 				writeln("impComp");
-				// return importCompletion(beforeTokens, kind, moduleCache);
+				return importCompletion(beforeTokens, kind, rootModule);
 			}
 		// }
 		// AutocompleteResponse response;
@@ -480,9 +480,6 @@ in
 body
 {
 	AutocompleteResponse response;
-
-	return response;
-
 	if (beforeTokens.length <= 2)
 		return response;
 
@@ -497,79 +494,79 @@ body
 		return response;
 	}
 
-	loop: while (true) switch (beforeTokens[i].value)
-	{
-	case TOK.identifier:
-	case TOK.assign:
-	case TOK.comma:
-	case TOK.dot:
-		i--;
-		break;
-	case TOK.colon:
-		i--;
-		while (beforeTokens[i].value == TOK.identifier || beforeTokens[i].value == TOK.dot)
-			i--;
-		break loop;
-	default:
-		break loop;
-	}
+	// loop: while (true) switch (beforeTokens[i].value)
+	// {
+	// case TOK.identifier:
+	// case TOK.assign:
+	// case TOK.comma:
+	// case TOK.dot:
+	// 	i--;
+	// 	break;
+	// case TOK.colon:
+	// 	i--;
+	// 	while (beforeTokens[i].value == TOK.identifier || beforeTokens[i].value == TOK.dot)
+	// 		i--;
+	// 	break loop;
+	// default:
+	// 	break loop;
+	// }
 
-	size_t j = i;
-	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
-	{
-	case TOK.colon: break loop2;
-	default: j++; break;
-	}
+	// size_t j = i;
+	// loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
+	// {
+	// case TOK.colon: break loop2;
+	// default: j++; break;
+	// }
 
-	if (i >= j)
-	{
-		warning("Malformed import statement");
-		return response;
-	}
+	// if (i >= j)
+	// {
+	// 	warning("Malformed import statement");
+	// 	return response;
+	// }
 
-	immutable string path = beforeTokens[i + 1 .. j]
-		.filter!(token => token.value == TOK.identifier)
-		.map!(token => cast() token.ptr) // token.text?
-		.joiner(dirSeparator)
-		.text();
+	// immutable string path = beforeTokens[i + 1 .. j]
+	// 	.filter!(token => token.value == TOK.identifier)
+	// 	.map!(token => cast() token.ptr) // token.text?
+	// 	.joiner(dirSeparator)
+	// 	.text();
 
 
-	string resolvedLocation = resolveImportLocation(path);
-	if (resolvedLocation is null)
-	{
-		warning("Could not resolve location of ", path);
-		return response;
-	}
-	auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
+	// string resolvedLocation = resolveImportLocation(path);
+	// if (resolvedLocation is null)
+	// {
+	// 	warning("Could not resolve location of ", path);
+	// 	return response;
+	// }
+	// auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
 
-	import containers.hashset : HashSet;
-	HashSet!string h;
+	// import containers.hashset : HashSet;
+	// HashSet!string h;
 
-	void addSymbolToResponses(const(Dsymbol)* sy)
-	{
-		auto a = Dsymbol(sy.name);
-		if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
-				/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
-				&& sy.isImport().prot.kind == Prot.Kind.public_
-				&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
-				/*&& isPublicCompletionKind(sy.kind)*/
-				&& (sy.isWithScopeSymbol() || sy.isImport())
-				) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		{
-			response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
-			h.insert(sy.name);
-		}
-	}
+	// void addSymbolToResponses(const(Dsymbol)* sy)
+	// {
+	// 	auto a = Dsymbol(sy.name);
+	// 	if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
+	// 			/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
+	// 			&& sy.isImport().prot.kind == Prot.Kind.public_
+	// 			&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
+	// 			/*&& isPublicCompletionKind(sy.kind)*/
+	// 			&& (sy.isWithScopeSymbol() || sy.isImport())
+	// 			) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// 	{
+	// 		response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
+	// 		h.insert(sy.name);
+	// 	}
+	// }
 
-	foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
-	{
-		if (s.isImport())
-			foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
-				addSymbolToResponses(sy);
-		else
-			addSymbolToResponses(s);
-	}
-	response.completionType = CompletionType.identifiers;
+	// foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
+	// {
+	// 	if (s.isImport())
+	// 		foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
+	// 			addSymbolToResponses(sy);
+	// 	else
+	// 		addSymbolToResponses(s);
+	// }
+	// response.completionType = CompletionType.identifiers;
 	return response;
 }
 
@@ -580,22 +577,23 @@ body
  *     response = the response that should be populated
  */
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
-	ref ModuleCache cache)
+	ref Module cache)
 {
 	response.completionType = CompletionType.identifiers;
 	string partial = null;
-	if (tokens[$ - 1].type == tok!"identifier")
+	if (tokens[$ - 1].value == TOK.identifier)
 	{
 		partial = tokens[$ - 1].text;
 		tokens = tokens[0 .. $ - 1];
 	}
-	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
+	auto moduleParts = tokens.filter!(a => a.value == TOK.identifier).map!("a.text").array();
 	string path = buildPath(moduleParts);
 
 	bool found = false;
 
-	foreach (importPath; cache.getImportPaths())
+	foreach (ip; *global.path)
 	{
+		auto importPath = to!string(ip);
 		if (importPath.isFile)
 		{
 			if (!exists(importPath))
@@ -606,7 +604,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 			auto n = importPath.baseName(".d").baseName(".di");
 			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-				response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, importPath, 0);
+				response.completions ~= AutocompleteResponse.Completion(n, /*CompletionKind.moduleName*/ 0, null, importPath, 0);
 		}
 		else
 		{
@@ -625,7 +623,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 				auto n = name.baseName(".d").baseName(".di");
 				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-					response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, name, 0);
+					response.completions ~= AutocompleteResponse.Completion(n, /*CompletionKind.moduleName*/ 0, null, name, 0);
 				else if (isDir(name))
 				{
 					if (n[0] != '.' && (partial is null || n.startsWith(partial)))
@@ -634,7 +632,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 						immutable packageDIPath = buildPath(name, "package.di");
 						immutable packageD = exists(packageDPath);
 						immutable packageDI = exists(packageDIPath);
-						immutable kind = packageD || packageDI ? CompletionKind.moduleName : CompletionKind.packageName;
+						immutable kind = packageD || packageDI ? /*CompletionKind.moduleName*/ 0 : /*CompletionKind.packageName*/ 1;
 						immutable file = packageD ? packageDPath : packageDI ? packageDIPath : name;
 						response.completions ~= AutocompleteResponse.Completion(n, kind, null, file, 0);
 					}
