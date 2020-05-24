@@ -48,7 +48,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 3, 12); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 3, 13); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -165,15 +165,12 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			{
 				if (beforeTokens.isUdaExpression)
 					beforeTokens = beforeTokens[$-1 .. $];
-			writeln("1111111111111");
+				writeln("1111111111111");
 				return dotCompletion(beforeTokens, tokenArray, cursorLoc,
 					rootModule);
 			}
 			else
-			{
-				writeln("impComp");
 				return importCompletion(beforeTokens, kind, rootModule);
-			}
 		// }
 		// AutocompleteResponse response;
 		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -583,10 +580,11 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 	string partial = null;
 	if (tokens[$ - 1].value == TOK.identifier)
 	{
-		partial = tokens[$ - 1].text;
+		partial = to!string(tokens[$ - 1].ident);
 		tokens = tokens[0 .. $ - 1];
 	}
-	auto moduleParts = tokens.filter!(a => a.value == TOK.identifier).map!("a.ident.toString()").array();
+	auto moduleParts = tokens.filter!(a => a.value == TOK.identifier)
+							 .map!("a.ident.toString()").array();
 	string path = buildPath(moduleParts);
 
 	bool found = false;
