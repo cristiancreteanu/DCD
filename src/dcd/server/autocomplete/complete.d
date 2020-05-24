@@ -46,7 +46,7 @@ import dmd.compiler;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 51, 18); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 53, 18); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -401,6 +401,62 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	return response;
 }
 
+/// Wrapper to check some attribute of a path, ignoring errors
+/// (such as on a broken symlink).
+private static bool existsAnd(alias fun)(string fn)
+{
+	try
+		return fun(fn);
+	catch (FileException e)
+		return false;
+}
+
+/**
+ * Params:
+ *     moduleName = the name of the module being imported, in "a/b/c" style
+ * Returns:
+ *     The absolute path to the file that contains the module, or null if
+ *     not found.
+ */
+string resolveImportLocation(string moduleName)
+{
+	assert(moduleName !is null, "module name is null");
+	if (isRooted(moduleName))
+		return moduleName;
+	string[] alternatives;
+	foreach (importPath; *global.path)
+	{
+		auto path = to!string(importPath);
+		if (path.existsAnd!isFile)
+		{
+			if (path.stripExtension.endsWith(moduleName))
+				alternatives ~= path;
+		}
+		else
+		{
+			string dotDi = buildPath(path, moduleName) ~ ".di";
+			string dotD = dotDi[0 .. $ - 1];
+			string withoutSuffix = dotDi[0 .. $ - 3];
+			if (existsAnd!isFile(dotD))
+				alternatives = dotD ~ alternatives;
+			else if (existsAnd!isFile(dotDi))
+				alternatives ~= dotDi;
+			else if (existsAnd!isDir(withoutSuffix))
+			{
+				string packagePath = buildPath(withoutSuffix, "package.di");
+				if (existsAnd!isFile(packagePath))
+				{
+					alternatives ~= packagePath;
+					continue;
+				}
+				if (existsAnd!isFile(packagePath[0 .. $ - 1]))
+					alternatives ~= packagePath[0 .. $ - 1];
+			}
+		}
+	}
+	return alternatives.length > 0 ? alternatives[0] : null;
+}
+
 /**
  * Provides autocomplete for selective imports, e.g.:
  * ---
@@ -426,25 +482,24 @@ body
 
 	if (kind == ImportKind.normal)
 	{
-
-		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import"
-				&& beforeTokens[i].type != tok!"=" )
+		while (beforeTokens[i].value != TOK.comma && beforeTokens[i].value != TOK.import_
+				&& beforeTokens[i].value != TOK.assign)
 			i--;
 		setImportCompletions(beforeTokens[i .. $], response, rootModule);
 		return response;
 	}
 
-	loop: while (true) switch (beforeTokens[i].type)
+	loop: while (true) switch (beforeTokens[i].value)
 	{
-	case tok!"identifier":
-	case tok!"=":
-	case tok!",":
-	case tok!".":
+	case TOK.identifier:
+	case TOK.assign:
+	case TOK.comma:
+	case TOK.dot:
 		i--;
 		break;
-	case tok!":":
+	case TOK.colon:
 		i--;
-		while (beforeTokens[i].type == tok!"identifier" || beforeTokens[i].type == tok!".")
+		while (beforeTokens[i].value == TOK.identifier || beforeTokens[i].value == TOK.dot)
 			i--;
 		break loop;
 	default:
@@ -454,7 +509,7 @@ body
 	size_t j = i;
 	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
 	{
-	case tok!":": break loop2;
+	case TOK.colon: break loop2;
 	default: j++; break;
 	}
 
@@ -465,12 +520,13 @@ body
 	}
 
 	immutable string path = beforeTokens[i + 1 .. j]
-		.filter!(token => token.type == tok!"identifier")
-		.map!(token => cast() token.text)
+		.filter!(token => token.value == TOK.identifier)
+		.map!(token => cast() token.ptr) // token.text?
 		.joiner(dirSeparator)
 		.text();
 
-	string resolvedLocation = moduleCache.resolveImportLocation(path);
+
+	string resolvedLocation = resolveImportLocation(path);
 	if (resolvedLocation is null)
 	{
 		warning("Could not resolve location of ", path);
@@ -485,8 +541,12 @@ body
 	{
 		auto a = Dsymbol(sy.name);
 		if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
-				/*&& !sy.skipOver*/ && sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
-				/*&& isPublicCompletionKind(sy.kind)*/) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
+				&& sy.isImport().prot.kind == Prot.Kind.public_
+				&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
+				/*&& isPublicCompletionKind(sy.kind)*/
+				&& (sy.isWithScopeSymbol() || sy.isImport())
+				) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
 			response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
 			h.insert(sy.name);
@@ -495,7 +555,7 @@ body
 
 	foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
 	{
-		if (s.kind == CompletionKind.importSymbol && s.type !is null)
+		if (s.isImport())
 			foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
 				addSymbolToResponses(sy);
 		else

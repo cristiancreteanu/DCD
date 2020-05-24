@@ -139,7 +139,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 		if (tok.loc >= cursorPosition) {
 			break;
 		}
-		writeln(tok.loc);
+		writeln(tok.value);
 		beforeTokens ~= tok;
 	}
 	return beforeTokens;
