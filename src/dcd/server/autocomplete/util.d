@@ -624,9 +624,12 @@ ImportKind determineImportKind(T)(T tokens)
 {
 	assert (tokens.length > 1);
 	size_t i = tokens.length - 1;
+
 	if (!(tokens[i].value == TOK.colon || tokens[i].value == TOK.comma
 			|| tokens[i].value == TOK.dot || tokens[i].value == TOK.identifier))
 		return ImportKind.neither;
+
+	writeln("csffffffffffffffffffff");
 	bool foundColon = false;
 	while (true) switch (tokens[i].value)
 	{

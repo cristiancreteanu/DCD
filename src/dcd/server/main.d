@@ -89,7 +89,7 @@ int runServer(string[] args)
 	sharedLog.fatalHandler = () {};
 
 	global.path = new Strings();
-    // global.path.push("/home/cristian/dlang/phobos");
+    global.path.push("/home/cristian/dlang/phobos");
     global.path.push("/home/cristian/dlang/druntime/import");
 
 	// diagnosticHandler = (const ref Loc location,
@@ -202,6 +202,8 @@ int runServer(string[] args)
 	}
 
 	Module cache = createModule("/home/cristian/dlang/Graduation/correct.d");
+	cache.importedFrom = cache;
+
 	cache.read(Loc.initial);
 	// cache.importAll(null);
 	// infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());

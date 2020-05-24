@@ -43,10 +43,12 @@ import dmd.semantic3;
 import dmd.dsymbolsem;
 import dmd.compiler;
 
+import dmd.gluelayer;
+
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 53, 18); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 3, 12); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -159,16 +161,19 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			ImportKind kind = determineImportKind(beforeTokens);
 
 			writeln(kind);
-		// 	if (kind == ImportKind.neither)
-		// 	{
-		// 		if (beforeTokens.isUdaExpression)
-		// 			beforeTokens = beforeTokens[$-1 .. $];
+			if (kind == ImportKind.neither)
+			{
+				if (beforeTokens.isUdaExpression)
+					beforeTokens = beforeTokens[$-1 .. $];
 			writeln("1111111111111");
 				return dotCompletion(beforeTokens, tokenArray, cursorLoc,
 					rootModule);
-		// 	}
-		// 	else
-		// 		return importCompletion(beforeTokens, kind, moduleCache);
+			}
+			else
+			{
+				writeln("impComp");
+				// return importCompletion(beforeTokens, kind, moduleCache);
+			}
 		// }
 		// AutocompleteResponse response;
 		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -301,6 +306,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	};
 
 	rootModule.importAll(null);
+
     rootModule.dsymbolSemantic(null);
 
 	Module.dprogress = 1;

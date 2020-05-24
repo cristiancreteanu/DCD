@@ -111,6 +111,16 @@ struct AutocompleteRequest
 	 */
 	size_t cursorPosition;
 
+	// /**
+	//  * The cursor line number
+	//  */
+	// size_t cursorLineNum;
+
+	// /**
+	//  * The cursor character number
+	//  */
+	// size_t cursorCharNum;
+
 	/**
 	 * Name of symbol searched for
 	 */
