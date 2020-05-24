@@ -139,7 +139,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 		if (tok.loc >= cursorPosition) {
 			break;
 		}
-		writeln(tok.value);
+		// writeln(tok.value);
 		beforeTokens ~= tok;
 	}
 	return beforeTokens;
@@ -622,31 +622,31 @@ T getExpression(T)(T beforeTokens)
  */
 ImportKind determineImportKind(T)(T tokens)
 {
-	// assert (tokens.length > 1);
-	// size_t i = tokens.length - 1;
-	// if (!(tokens[i] == tok!":" || tokens[i] == tok!"," || tokens[i] == tok!"."
-	// 		|| tokens[i] == tok!"identifier"))
-	// 	return ImportKind.neither;
-	// bool foundColon = false;
-	// while (true) switch (tokens[i].value)
-	// {
-	// case tok!":":
-	// 	foundColon = true;
-	// 	goto case;
-	// case tok!"identifier":
-	// case tok!"=":
-	// case tok!".":
-	// case tok!",":
-	// 	if (i == 0)
-	// 		return ImportKind.neither;
-	// 	else
-	// 		i--;
-	// 	break;
-	// case tok!"import":
-	// 	return foundColon ? ImportKind.selective : ImportKind.normal;
-	// default:
-	// 	return ImportKind.neither;
-	// }
+	assert (tokens.length > 1);
+	size_t i = tokens.length - 1;
+	if (!(tokens[i].value == TOK.colon || tokens[i].value == TOK.comma
+			|| tokens[i].value == TOK.dot || tokens[i].value == TOK.identifier))
+		return ImportKind.neither;
+	bool foundColon = false;
+	while (true) switch (tokens[i].value)
+	{
+	case TOK.colon:
+		foundColon = true;
+		goto case;
+	case TOK.identifier:
+	case /*tok!"="*/ TOK.assign:
+	case TOK.dot:
+	case TOK.comma:
+		if (i == 0)
+			return ImportKind.neither;
+		else
+			i--;
+		break;
+	case TOK.import_:
+		return foundColon ? ImportKind.selective : ImportKind.normal;
+	default:
+		return ImportKind.neither;
+	}
 	return ImportKind.neither;
 }
 
