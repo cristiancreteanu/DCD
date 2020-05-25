@@ -48,7 +48,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 3, 13); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 3, 20); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -462,6 +462,21 @@ string resolveImportLocation(string moduleName)
 	return alternatives.length > 0 ? alternatives[0] : null;
 }
 
+const(Dsymbol)[] getGlobalPublicSymbols(ref Module mod)
+{
+	const(Dsymbol)[] symbols;
+
+	foreach (s; *mod.members)
+	{
+		// if (__traits(hasMember, typeof(s), "protection")
+		// 	&& __traits(getMember, s, "protection") == Prot.Kind.public_)
+		if (__traits(getProtection, s) == "public")
+			symbols ~= s;
+	}
+
+	return symbols;
+}
+
 /**
  * Provides autocomplete for selective imports, e.g.:
  * ---
@@ -491,50 +506,66 @@ body
 		return response;
 	}
 
-	// loop: while (true) switch (beforeTokens[i].value)
+	loop: while (true) switch (beforeTokens[i].value)
+	{
+	case TOK.identifier:
+	case TOK.assign:
+	case TOK.comma:
+	case TOK.dot:
+		i--;
+		break;
+	case TOK.colon:
+		i--;
+		while (beforeTokens[i].value == TOK.identifier || beforeTokens[i].value == TOK.dot)
+			i--;
+		break loop;
+	default:
+		break loop;
+	}
+
+	size_t j = i;
+	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].value)
+	{
+	case TOK.colon: break loop2;
+	default: j++; break;
+	}
+
+	if (i >= j)
+	{
+		warning("Malformed import statement");
+		return response;
+	}
+
+	immutable string path = beforeTokens[i + 1 .. j]
+		.filter!(token => token.value == TOK.identifier)
+		.map!(token => cast() token.ident.toString()) // token.text?
+		.joiner(dirSeparator)
+		.text();
+
+
+	string resolvedLocation = resolveImportLocation(path);
+	if (resolvedLocation is null)
+	{
+		warning("Could not resolve location of ", path);
+		return response;
+	}
+
+	writeln("s a ajuns aici");
+
+	rootModule.parse();
+	rootModule.importAll(null);
+
+	writeln(rootModule.srcfile);
+
+	foreach (mod; rootModule.aimports) {
+		writeln(mod.srcfile);
+		// auto symbols = getGlobalPublicSymbols(rootModule); // aici tre sa fie modulu de la resolved location
+	}
+
+	// foreach (sym; symbols)
 	// {
-	// case TOK.identifier:
-	// case TOK.assign:
-	// case TOK.comma:
-	// case TOK.dot:
-	// 	i--;
-	// 	break;
-	// case TOK.colon:
-	// 	i--;
-	// 	while (beforeTokens[i].value == TOK.identifier || beforeTokens[i].value == TOK.dot)
-	// 		i--;
-	// 	break loop;
-	// default:
-	// 	break loop;
+	// 	writeln(sym.ident);
 	// }
-
-	// size_t j = i;
-	// loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
-	// {
-	// case TOK.colon: break loop2;
-	// default: j++; break;
-	// }
-
-	// if (i >= j)
-	// {
-	// 	warning("Malformed import statement");
-	// 	return response;
-	// }
-
-	// immutable string path = beforeTokens[i + 1 .. j]
-	// 	.filter!(token => token.value == TOK.identifier)
-	// 	.map!(token => cast() token.ptr) // token.text?
-	// 	.joiner(dirSeparator)
-	// 	.text();
-
-
-	// string resolvedLocation = resolveImportLocation(path);
-	// if (resolvedLocation is null)
-	// {
-	// 	warning("Could not resolve location of ", path);
-	// 	return response;
-	// }
-	// auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
 
 	// import containers.hashset : HashSet;
 	// HashSet!string h;
