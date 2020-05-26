@@ -462,9 +462,9 @@ string resolveImportLocation(string moduleName)
 	return alternatives.length > 0 ? alternatives[0] : null;
 }
 
-const(Dsymbol)[] getGlobalPublicSymbols(ref Module mod)
+Dsymbol[] getGlobalPublicSymbols(ref Module mod)
 {
-	const(Dsymbol)[] symbols;
+	Dsymbol[] symbols;
 
 	foreach (s; *mod.members)
 	{
@@ -567,7 +567,7 @@ body
 	rootModule.semantic3(null);
 	Module.runDeferredSemantic3();
 
-	const(Dsymbol)[] symbols;
+	Dsymbol[] symbols;
 	foreach (mod; rootModule.aimports) {
 		if (resolvedLocation == mod.srcfile.toString())
 		{
@@ -581,30 +581,28 @@ body
 
 	void addSymbolToResponses(Dsymbol sy)
 	{
-		auto a = Dsymbol(sy.name);
-		if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(to!string(sy.ident))
+		if (auto imp = sy.isImport())
+			if (imp.prot.kind != Prot.Kind.public_)
+				return;
+
+		if (sy.ident !is null && !h.contains(to!string(sy.ident))
 				/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
-				&& sy.isImport().prot.kind == Prot.Kind.public_
-				&& !sy.isCtorDeclaration()
-				/*&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME*/
-				/*&& isPublicCompletionKind(sy.kind)*/
-				&& (sy.isWithScopeSymbol() || sy.isImport())
-				) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				&& !sy.isCtorDeclaration())
 		{
 			response.completions ~= makeSymbolCompletionInfo(sy);
 			h.insert(to!string(sy.ident));
 		}
 	}
 
-	// foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
-	// {
-	// 	if (s.isImport())
-	// 		foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
-	// 			addSymbolToResponses(sy);
-	// 	else
-	// 		addSymbolToResponses(s);
-	// }
-	// response.completionType = CompletionType.identifiers;
+	foreach (s; symbols)
+	{
+		// if (s.isImport())
+		// 	foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
+		// 		addSymbolToResponses(sy);
+		// else
+			addSymbolToResponses(s);
+	}
+	response.completionType = CompletionType.identifiers;
 	return response;
 }
 
