@@ -48,7 +48,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 9, 14); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 91, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -379,6 +379,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
 		break;
 	default:
+		writeln("wa wa waaaaaaaaaaaaaaaaaa");
 		break;
 	}
 	return response;
