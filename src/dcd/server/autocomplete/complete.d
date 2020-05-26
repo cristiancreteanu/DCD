@@ -367,6 +367,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case TOK.charLiteral:
 	case TOK.wcharLiteral:
 	case TOK.dcharLiteral:
+	case TOK.identifier:
 	case TOK.this_:
 	case TOK.super_:
 	case TOK.rightParentheses:
