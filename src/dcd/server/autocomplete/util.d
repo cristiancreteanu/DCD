@@ -68,35 +68,33 @@ struct SymbolStuff
  * Returns:
  *     true if the symbol should be swapped with its type field
  */
-bool shouldSwapWithType(CompletionType completionType,
+bool shouldSwapWithType(CompletionType completionType, Dsymbol symbol,
 	size_t current, size_t max) pure nothrow @safe
 {
 	// packages never have types, so always return false
-	// if (kind == CompletionKind.packageName
-	// 	|| kind == CompletionKind.className
-	// 	|| kind == CompletionKind.structName
-	// 	|| kind == CompletionKind.interfaceName
-	// 	|| kind == CompletionKind.enumName
-	// 	|| kind == CompletionKind.unionName
-	// 	|| kind == CompletionKind.templateName
-	// 	|| kind == CompletionKind.keyword)
-	// {
-	// 	return false;
-	// }
-	// // Swap out every part of a chain with its type except the last part
-	// if (current < max)
-	// 	return true;
-	// // Only swap out types for these kinds
-	// immutable bool isInteresting =
-	// 	kind == CompletionKind.variableName
-	// 	|| kind == CompletionKind.memberVariableName
-	// 	|| kind == CompletionKind.importSymbol
-	// 	|| kind == CompletionKind.aliasName
-	// 	|| kind == CompletionKind.enumMember
-	// 	|| kind == CompletionKind.functionName;
-	// return isInteresting && (completionType == CompletionType.identifiers
-	// 	|| (completionType == completionType.calltips && kind == CompletionKind.variableName)) ;
-	return true;
+	if (symbol.isPackage()
+		|| symbol.isClassDeclaration()
+		|| symbol.isStructDeclaration()
+		|| symbol.isInterfaceDeclaration()
+		|| symbol.isEnumDeclaration()
+		|| symbol.isUnionDeclaration()
+		|| symbol.isTemplateDeclaration())
+		/*|| kind == CompletionKind.keyword)*/ //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	{
+		return false;
+	}
+	// Swap out every part of a chain with its type except the last part
+	if (current < max)
+		return true;
+	// Only swap out types for these kinds
+	immutable bool isInteresting =
+		symbol.isVarDeclaration()
+		|| symbol.isImport()
+		|| symbol.isAliasDeclaration()
+		|| symbol.isEnumMember()
+		|| symbol.isFuncDeclaration();
+	return isInteresting && (completionType == CompletionType.identifiers
+		|| (completionType == completionType.calltips && symbol.isVarDeclaration())) ;
 }
 
 // istring stringToken()(auto ref const Token a)
@@ -169,23 +167,23 @@ SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 
 bool isSliceExpression(T)(T tokens, size_t index) //!!!!!!!!!!!!!!
 {
-	// while (index < tokens.length) switch (tokens[index].type)
-	// {
-	// case tok!"[":
-	// 	tokens.skipParen(index, tok!"[", tok!"]");
-	// 	break;
-	// case tok!"(":
-	// 	tokens.skipParen(index, tok!"(", tok!")");
-	// 	break;
-	// case tok!"]":
-	// case tok!"}":
-	// 	return false;
-	// case tok!"..":
-	// 	return true;
-	// default:
-	// 	index++;
-	// 	break;
-	// }
+	while (index < tokens.length) switch (tokens[index].value)
+	{
+	case TOK.leftBracket:
+		tokens.skipParen(index, TOK.leftBracket, TOK.rightBracket);
+		break;
+	case TOK.leftParentheses:
+		tokens.skipParen(index, TOK.leftParentheses, TOK.rightParentheses);
+		break;
+	case TOK.rightBracket:
+	case TOK.rightCurly:
+		return false;
+	case TOK.slice:
+		return true;
+	default:
+		index++;
+		break;
+	}
 	return false;
 }
 
@@ -835,19 +833,20 @@ unittest
 
 AutocompleteResponse.Completion makeSymbolCompletionInfo(Dsymbol symbol)
 {
-	// string definition;
-	// if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.getType())
-	// 	definition = symbol.getType().toChars() ~ ' ' ~ symbol.ident.toString();
-	// else if (kind == CompletionKind.enumMember)
-	// 	definition = symbol.ident.toString(); // TODO: add enum value to definition string
-	// // else
-	// // 	definition = symbol.callTip; // de implementat calltip???????????????????????????????????????????????????????????
+	import std.conv;
+
+	string definition;
+	if ((symbol.isVarDeclaration()) && symbol.getType())
+		definition = to!string(symbol.getType()) ~ ' ' ~ to!string(symbol.ident);
+	else if (symbol.isEnumMember())
+		definition = to!string(symbol.ident); // TODO: add enum value to definition string
+	// else
+	// 	definition = symbol.callTip; // de implementat calltip???????????????????????????????????????????????????????????
 
 
 	// // TODO: definition strings could include more information, like on classes inheritance
 	// return AutocompleteResponse.Completion(symbol.ident.toString(), kind, definition,
 	// 	symbol.getModule().srcfile.toString(), symbol.loc, symbol.comment);
-	import std.conv;
 
 	return AutocompleteResponse.Completion(to!string(symbol.ident.toString()), 0, null,
 		to!string(symbol.getModule().srcfile.toString()), 0, to!string(symbol.comment));

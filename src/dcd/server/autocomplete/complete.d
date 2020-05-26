@@ -470,7 +470,8 @@ const(Dsymbol)[] getGlobalPublicSymbols(ref Module mod)
 	{
 		// if (__traits(hasMember, typeof(s), "protection")
 		// 	&& __traits(getMember, s, "protection") == Prot.Kind.public_)
-		if (__traits(getProtection, s) == "public" && s.ident !is null && !s.isImport())
+		if (s && __traits(getProtection, s) == "public"
+				&& s.ident !is null && !s.isImport())
 			symbols ~= s;
 	}
 
@@ -575,29 +576,25 @@ body
 		}
 	}
 
-	foreach (sym; symbols)
+	import containers.hashset : HashSet;
+	HashSet!string h;
+
+	void addSymbolToResponses(Dsymbol sy)
 	{
-		writeln(sym.ident);
+		auto a = Dsymbol(sy.name);
+		if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(to!string(sy.ident))
+				/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
+				&& sy.isImport().prot.kind == Prot.Kind.public_
+				&& !sy.isCtorDeclaration()
+				/*&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME*/
+				/*&& isPublicCompletionKind(sy.kind)*/
+				&& (sy.isWithScopeSymbol() || sy.isImport())
+				) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		{
+			response.completions ~= makeSymbolCompletionInfo(sy);
+			h.insert(to!string(sy.ident));
+		}
 	}
-
-	// import containers.hashset : HashSet;
-	// HashSet!string h;
-
-	// void addSymbolToResponses(const(Dsymbol)* sy)
-	// {
-	// 	auto a = Dsymbol(sy.name);
-	// 	if (!builtinSymbols.contains(&a) && sy.ident !is null && !h.contains(sy.ident.toString())
-	// 			/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
-	// 			&& sy.isImport().prot.kind == Prot.Kind.public_
-	// 			&& sy.ident.toString() != CONSTRUCTOR_SYMBOL_NAME
-	// 			/*&& isPublicCompletionKind(sy.kind)*/
-	// 			&& (sy.isWithScopeSymbol() || sy.isImport())
-	// 			) //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// 	{
-	// 		response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
-	// 		h.insert(sy.name);
-	// 	}
-	// }
 
 	// foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
 	// {
