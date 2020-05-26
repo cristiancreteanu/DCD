@@ -315,7 +315,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	rootModule.semantic3(null);
 	Module.runDeferredSemantic3();
 
-	writeln(scp);
+	// writeln(scp);
 
 	return ScopeSymbolPair(null, scp);
 }
@@ -470,7 +470,7 @@ const(Dsymbol)[] getGlobalPublicSymbols(ref Module mod)
 	{
 		// if (__traits(hasMember, typeof(s), "protection")
 		// 	&& __traits(getMember, s, "protection") == Prot.Kind.public_)
-		if (__traits(getProtection, s) == "public")
+		if (__traits(getProtection, s) == "public" && s.ident !is null && !s.isImport())
 			symbols ~= s;
 	}
 
@@ -555,17 +555,30 @@ body
 	rootModule.parse();
 	rootModule.importAll(null);
 
-	writeln(rootModule.srcfile);
+	rootModule.dsymbolSemantic(null);
 
+	Module.dprogress = 1;
+    Module.runDeferredSemantic();
+
+	rootModule.semantic2(null);
+	Module.runDeferredSemantic2();
+
+	rootModule.semantic3(null);
+	Module.runDeferredSemantic3();
+
+	const(Dsymbol)[] symbols;
 	foreach (mod; rootModule.aimports) {
-		writeln(mod.srcfile);
-		// auto symbols = getGlobalPublicSymbols(rootModule); // aici tre sa fie modulu de la resolved location
+		if (resolvedLocation == mod.srcfile.toString())
+		{
+			symbols = getGlobalPublicSymbols(mod);
+			break;
+		}
 	}
 
-	// foreach (sym; symbols)
-	// {
-	// 	writeln(sym.ident);
-	// }
+	foreach (sym; symbols)
+	{
+		writeln(sym.ident);
+	}
 
 	// import containers.hashset : HashSet;
 	// HashSet!string h;
