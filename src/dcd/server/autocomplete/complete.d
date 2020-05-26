@@ -81,7 +81,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 											TOK.float80, TOK.bool_, TOK.char_, TOK.wchar_,
 											TOK.dchar_, TOK.imaginary32, TOK.imaginary64,
 											TOK.imaginary80, TOK.complex32, TOK.complex64,
-											TOK.complex80)))
+											TOK.complex80, TOK.void_)))
 	{
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
 		// fakeIdent.ptr = str(fakeIdent.value);
@@ -125,7 +125,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 				// odd index : identifiers must match
 				else if (expectIdt &&
 					(tokenArray[i].value != TOK.identifier || beforeTokens[j].value != TOK.identifier ||
-					tokenArray[i].ptr != beforeTokens[j].ptr)) // aici cred ca trebuie cu strcmp !!!!!!!!!!!!!!!!!!!!!!!!!!!
+					to!string(tokenArray[i].ident) != to!string(beforeTokens[j].ident)))// !!!!!!!!!!
 						break;
 			}
 			if (i == moduleDeclEndIndex - 1)
@@ -148,16 +148,17 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 
 	if (beforeTokens.length >= 2)
 	{
-		// if (beforeTokens[$ - 1] == TOK.leftParentheses || beforeTokens[$ - 1] == TOK.leftBracket
-		// 	|| beforeTokens[$ - 1] == TOK.comma)
-		// {
-		// 	immutable size_t end = goBackToOpenParen(beforeTokens);
-		// 	if (end != size_t.max)
-		// 		return parenCompletion(beforeTokens[0 .. end], tokenArray,
-		// 			request.cursorPosition, moduleCache);
-		// }
-		// else
-		// {
+		if (beforeTokens[$ - 1].value == TOK.leftParentheses
+			|| beforeTokens[$ - 1].value == TOK.leftBracket
+			|| beforeTokens[$ - 1].value == TOK.comma)
+		{
+			immutable size_t end = goBackToOpenParen(beforeTokens);
+			if (end != size_t.max)
+				return parenCompletion(beforeTokens[0 .. end], tokenArray,
+					cursorLoc, rootModule);
+		}
+		else
+		{
 			ImportKind kind = determineImportKind(beforeTokens);
 
 			writeln(kind);
@@ -171,7 +172,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			}
 			else
 				return importCompletion(beforeTokens, kind, rootModule);
-		// }
+		}
 		// AutocompleteResponse response;
 		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
@@ -279,20 +280,7 @@ Loc cPos;
 ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	Loc cursorPosition, ref Module rootModule)
 {
-	writeln("22222222222222222");
-	// Module m = parseModuleForAutocomplete(tokens, internString("stdin"),
-	// 	parseAllocator, cursorPosition);
-
 	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
-
-	// auto first = scoped!FirstPass(m, internString("stdin"), symbolAllocator,
-	// 	symbolAllocator, true, &cache);
-	// first.run();
-
-	// secondPass(first.rootSymbol, first.moduleScope, cache);
-	// auto r = first.rootSymbol.acSymbol;
-	// typeid(SemanticSymbol).destroy(first.rootSymbol);
-	// return ScopeSymbolPair(r, first.moduleScope);
 
 	cPos = cursorPosition;
 	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
@@ -342,25 +330,25 @@ struct ScopeSymbolPair
  *     the autocompletion response
  */
 AutocompleteResponse parenCompletion(T)(T beforeTokens,
-	const(Token)[] tokenArray, size_t cursorPosition, ref Module rootModule)
+	const(Token)[] tokenArray, Loc cursorPosition, ref Module rootModule)
 {
 	AutocompleteResponse response;
 	immutable(ConstantCompletion)[] completions;
-	switch (beforeTokens[$ - 2].type)
+	switch (beforeTokens[$ - 2].value)
 	{
-	case tok!"__traits":
+	case TOK.traits:
 		completions = traits;
 		goto fillResponse;
-	case tok!"scope":
+	case TOK.scope_:
 		completions = scopes;
 		goto fillResponse;
-	case tok!"version":
+	case TOK.version_:
 		completions = predefinedVersions;
 		goto fillResponse;
-	case tok!"extern":
+	case TOK.extern_:
 		completions = linkages;
 		goto fillResponse;
-	case tok!"pragma":
+	case TOK.pragma_:
 		completions = pragmas;
 	fillResponse:
 		response.completionType = CompletionType.identifiers;
@@ -368,37 +356,37 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		{
 			response.completions ~= AutocompleteResponse.Completion(
 				completion.identifier,
-				CompletionKind.keyword,
+				0, //CompletionKind.keyword,
 				null, null, 0, // definition, symbol path+location
 				completion.ddoc
 			);
 		}
 		break;
-	case tok!"characterLiteral":
-	case tok!"doubleLiteral":
-	case tok!"floatLiteral":
-	case tok!"identifier":
-	case tok!"idoubleLiteral":
-	case tok!"ifloatLiteral":
-	case tok!"intLiteral":
-	case tok!"irealLiteral":
-	case tok!"longLiteral":
-	case tok!"realLiteral":
-	case tok!"uintLiteral":
-	case tok!"ulongLiteral":
-	case tok!"this":
-	case tok!"super":
-	case tok!")":
-	case tok!"]":
+	case TOK.int32Literal:
+	case TOK.uns32Literal:
+	case TOK.int64Literal:
+	case TOK.uns64Literal:
+	case TOK.int128Literal:
+	case TOK.uns128Literal:
+	case TOK.float32Literal:
+	case TOK.float64Literal:
+	case TOK.float80Literal:
+	case TOK.imaginary32Literal:
+	case TOK.imaginary64Literal:
+	case TOK.imaginary80Literal:
+	case TOK.charLiteral:
+	case TOK.wcharLiteral:
+	case TOK.dcharLiteral:
+	case TOK.this_:
+	case TOK.super_:
+	case TOK.rightParentheses:
+	case TOK.rightBracket:
 	mixin(STRING_LITERAL_CASES);
-		auto allocator = scoped!(ASTAllocator)();
-		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, cursorPosition, rootModule);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,
-			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
+			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
 		break;
 	default:
 		break;
@@ -550,8 +538,6 @@ body
 		warning("Could not resolve location of ", path);
 		return response;
 	}
-
-	writeln("s a ajuns aici");
 
 	rootModule.parse();
 	rootModule.importAll(null);

@@ -729,45 +729,49 @@ in
 }
 body
 {
-	// size_t i = beforeTokens.length - 1;
-	// while (true) switch (beforeTokens[i].value)
-	// {
-	// case tok!",":
-	// case tok!".":
-	// case tok!"*":
-	// case tok!"&":
-	// case tok!"doubleLiteral":
-	// case tok!"floatLiteral":
-	// case tok!"idoubleLiteral":
-	// case tok!"ifloatLiteral":
-	// case tok!"intLiteral":
-	// case tok!"longLiteral":
-	// case tok!"realLiteral":
-	// case tok!"irealLiteral":
-	// case tok!"uintLiteral":
-	// case tok!"ulongLiteral":
-	// case tok!"characterLiteral":
-	// mixin(TYPE_IDENT_AND_LITERAL_CASES);
-	// 	if (i == 0)
-	// 		return size_t.max;
-	// 	else
-	// 		i--;
-	// 	break;
-	// case tok!"(":
-	// case tok!"[":
-	// 	return i + 1;
-	// case tok!")":
-	// 	i = beforeTokens.skipParenReverseBefore(i, tok!")", tok!"(");
-	// 	break;
-	// case tok!"}":
-	// 	i = beforeTokens.skipParenReverseBefore(i, tok!"}", tok!"{");
-	// 	break;
-	// case tok!"]":
-	// 	i = beforeTokens.skipParenReverseBefore(i, tok!"]", tok!"[");
-	// 	break;
-	// default:
-	// 	return size_t.max;
-	// }
+	size_t i = beforeTokens.length - 1;
+	while (true) switch (beforeTokens[i].value)
+	{
+	case TOK.comma:
+	case TOK.dot:
+	case TOK.star: // TOK.mul?????
+	case TOK.address: // TOK.and???
+	case TOK.int32Literal:
+	case TOK.uns32Literal:
+	case TOK.int64Literal:
+	case TOK.uns64Literal:
+	case TOK.int128Literal:
+	case TOK.uns128Literal:
+	case TOK.float32Literal:
+	case TOK.float64Literal:
+	case TOK.float80Literal:
+	case TOK.imaginary32Literal:
+	case TOK.imaginary64Literal:
+	case TOK.imaginary80Literal:
+	case TOK.charLiteral:
+	case TOK.wcharLiteral:
+	case TOK.dcharLiteral:
+	mixin(TYPE_IDENT_AND_LITERAL_CASES);
+		if (i == 0)
+			return size_t.max;
+		else
+			i--;
+		break;
+	case TOK.leftParentheses:
+	case TOK.leftBracket:
+		return i + 1;
+	case TOK.rightParentheses:
+		i = beforeTokens.skipParenReverseBefore(i, TOK.rightParentheses, TOK.leftParentheses);
+		break;
+	case TOK.rightCurly:
+		i = beforeTokens.skipParenReverseBefore(i, TOK.rightCurly, TOK.leftCurly);
+		break;
+	case TOK.rightBracket:
+		i = beforeTokens.skipParenReverseBefore(i, TOK.rightBracket, TOK.leftBracket);
+		break;
+	default:
+		return size_t.max;
+	}
 	return size_t.max;
 }
 
