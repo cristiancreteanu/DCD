@@ -65,14 +65,6 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		cursorLoc, tokenArray, rootModule);
 
 	// allows to get completion on keyword, typically "is"
-	/*
-	public alias BasicTypes = AliasSeq!(tok!"int", tok!"bool", tok!"byte",
-        tok!"cdouble", tok!"cent", tok!"cfloat", tok!"char", tok!"creal",
-        tok!"dchar", tok!"double", tok!"float", tok!"idouble",
-        tok!"ifloat", tok!"ireal", tok!"long", tok!"real", tok!"short",
-        tok!"ubyte", tok!"ucent", tok!"uint", tok!"ulong", tok!"ushort",
-        tok!"void", tok!"wchar");
-	*/
 	if (beforeTokens.length &&
 		(beforeTokens[$-1].isKeyword()
 		|| beforeTokens[$-1].value.among(TOK.int8, TOK.uns8, TOK.int16, TOK.uns16,
@@ -160,8 +152,6 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		else
 		{
 			ImportKind kind = determineImportKind(beforeTokens);
-
-			writeln(kind);
 			if (kind == ImportKind.neither)
 			{
 				if (beforeTokens.isUdaExpression)

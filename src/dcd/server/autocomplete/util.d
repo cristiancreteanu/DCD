@@ -627,7 +627,6 @@ ImportKind determineImportKind(T)(T tokens)
 			|| tokens[i].value == TOK.dot || tokens[i].value == TOK.identifier))
 		return ImportKind.neither;
 
-	writeln("csffffffffffffffffffff");
 	bool foundColon = false;
 	while (true) switch (tokens[i].value)
 	{
@@ -772,7 +771,6 @@ body
 	default:
 		return size_t.max;
 	}
-	return size_t.max;
 }
 
 /**
