@@ -48,7 +48,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 3, 20); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 9, 14); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -145,9 +145,11 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			|| beforeTokens[$ - 1].value == TOK.comma)
 		{
 			immutable size_t end = goBackToOpenParen(beforeTokens);
-			if (end != size_t.max)
+			if (end != size_t.max) {
+				writeln("pareeeeeeeeeeeeeeeeeeeeeeeeeeeeen");
 				return parenCompletion(beforeTokens[0 .. end], tokenArray,
 					cursorLoc, rootModule);
+			}
 		}
 		else
 		{
@@ -163,8 +165,6 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			else
 				return importCompletion(beforeTokens, kind, rootModule);
 		}
-		// AutocompleteResponse response;
-		// return response; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
 	return dotCompletion(beforeTokens, tokenArray, cursorLoc, rootModule);
 }
