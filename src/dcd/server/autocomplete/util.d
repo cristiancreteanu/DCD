@@ -134,10 +134,15 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 
 	const(Token)[] beforeTokens;
 	foreach (tok; tokenArray) {
-		if (tok.loc >= cursorPosition) {
+		// if (tok.loc >= cursorPosition) {
+		// 	break;
+		// }//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		if (tok.loc.linnum > cursorPosition.linnum
+			|| (tok.loc.linnum == cursorPosition.linnum
+				&& tok.loc.charnum >= cursorPosition.charnum))
 			break;
-		}
-		// writeln(tok.value);
+
 		beforeTokens ~= tok;
 	}
 	return beforeTokens;

@@ -17,7 +17,7 @@
   "stringImportPaths" : [
     "bin"
   ],
-  "versions": ["built_with_dub", "callback_API"],
+  "versions": ["built_with_dub", "CallbackAPI"],
   "configurations": [
     {
       "name": "library",

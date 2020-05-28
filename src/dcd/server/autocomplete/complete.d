@@ -18,6 +18,8 @@
 
 module dcd.server.autocomplete.complete;
 
+import core.stdc.string : strcmp;
+
 import std.algorithm;
 import std.array;
 import std.conv;
@@ -49,7 +51,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 73, 21); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("/home/cristian/dlang", 78, 21); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -274,8 +276,10 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
 
 	cPos = cursorPosition;
+	cPos.filename = to!string(rootModule.srcfile).ptr; /////////////////////////looooooooooc
 	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
-        if (s.loc.linnum == cPos.linnum) {
+		if (s.loc.linnum == cPos.linnum
+			&& strcmp(s.loc.filename, cPos.filename) == 0) {
             sc.setNoFree();
 			scp = sc;
         }
@@ -323,7 +327,6 @@ struct ScopeSymbolPair
 AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	const(Token)[] tokenArray, Loc cursorPosition, ref Module rootModule)
 {
-	writeln(beforeTokens[$ - 2].ident);
 	AutocompleteResponse response;
 	immutable(ConstantCompletion)[] completions;
 	switch (beforeTokens[$ - 2].value)
@@ -375,7 +378,6 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 	mixin(STRING_LITERAL_CASES);
-		writeln("haaaaaaaahelujah");
 		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
 		// as putea pur si simplu sa traversez AST-ul si aia e
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
@@ -387,26 +389,50 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 					if (to!string(x.value.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
 						continue;
 
+					writeln("haaaaaaaahelujah");
 					if (auto fd = x.value.isFuncDeclaration())
 					{
+						if (!callTips.empty)
+							callTips ~= "\n";
+
 						if (fd.isAuto()) {
-							callTips = "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
+							callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
 						} else {
-							callTips = to!string(fd.originalType.toChars());
-							auto paren = indexOf(callTips, '(');
-							callTips = callTips[0..paren] ~ " " ~ to!string(fd) ~ callTips[paren..$];
+							auto sig = to!string(fd.originalType.toChars());
+							auto paren = indexOf(sig, '(');
+							callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
 						}
 					}
 					else if (auto td = x.value.isTemplateDeclaration())
 					{
-						callTips = to!string(td.toChars());
-					}
-					else if (auto sd = x.value.isStructDeclaration())
-					{
-						writeln(to!string(sd.fields));
-					}
+						if (!callTips.empty)
+							callTips ~= "\n";
 
-					break;
+						callTips ~= to!string(td.toChars());
+					}
+					else if (auto sd = x.value.isAggregateDeclaration()) // struct/class
+					{
+						// searching for constructor
+						foreach (mem; *sd.members)
+						{
+							if (mem is null || mem.ident is null)
+								continue;
+
+							if (strcmp(mem.ident.toChars(), "__ctor") == 0)
+							{
+								auto fd = mem.isFuncDeclaration();
+								auto sig = to!string(fd.type);
+
+								if (!callTips.empty)
+									callTips ~= "\n";
+
+								// sig has the following format:
+								//			"ref *struct name*(*list of params*)"
+								// ref is dropped in the following
+								callTips ~= sig[indexOf(sig, sd.ident.toString())..$];
+							}
+						}
+					}
 				}
 			scp = scp.enclosing;
 		}
