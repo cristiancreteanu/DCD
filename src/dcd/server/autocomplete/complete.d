@@ -49,7 +49,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 92, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 73, 21); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -387,8 +387,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 					if (to!string(x.value.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
 						continue;
 
-					if (auto fd = x.value.isFuncDeclaration()) {
-
+					if (auto fd = x.value.isFuncDeclaration())
+					{
 						if (fd.isAuto()) {
 							callTips = "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
 						} else {
@@ -397,9 +397,13 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 							callTips = callTips[0..paren] ~ " " ~ to!string(fd) ~ callTips[paren..$];
 						}
 					}
-
-					if (auto td = x.value.isTemplateDeclaration()) {
+					else if (auto td = x.value.isTemplateDeclaration())
+					{
 						callTips = to!string(td.toChars());
+					}
+					else if (auto sd = x.value.isStructDeclaration())
+					{
+						writeln(to!string(sd.fields));
 					}
 
 					break;
