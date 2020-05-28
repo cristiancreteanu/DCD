@@ -49,7 +49,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 91, 15); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 92, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -323,7 +323,7 @@ struct ScopeSymbolPair
 AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	const(Token)[] tokenArray, Loc cursorPosition, ref Module rootModule)
 {
-		writeln("haaaaaaaahelujah");
+	writeln(beforeTokens[$ - 2].ident);
 	AutocompleteResponse response;
 	immutable(ConstantCompletion)[] completions;
 	switch (beforeTokens[$ - 2].value)
@@ -375,31 +375,11 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 	mixin(STRING_LITERAL_CASES);
+		writeln("haaaaaaaahelujah");
 		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
-
-		string createCallTips(FuncDeclaration fd)
-		{
-			// aici ar trebui sa vad daca are si template
-			string callTips = to!string(fd.originalType) ~ " " ~ to!string(fd.ident) ~ "(";
-
-			writeln(to!string(fd.toChars()));
-
-			bool first = true;
-			foreach (param; *fd.parameters)
-			{
-				if (!first)
-					callTips ~= ", ";
-
-				callTips ~= to!string(param.originalType) ~ " " ~ to!string(param.ident);
-
-				first = false;
-			}
-
-			return callTips ~ ")";
-		}
-
+		// as putea pur si simplu sa traversez AST-ul si aia e
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
-
+		string callTips;
 		auto scp = pair.scope_;
 		while (scp) {
 			if (scp.scopesym && scp.scopesym.symtab)
@@ -408,9 +388,21 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 						continue;
 
 					if (auto fd = x.value.isFuncDeclaration()) {
-						writeln(createCallTips(fd));
-						break;
+
+						if (fd.isAuto()) {
+							callTips = "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
+						} else {
+							callTips = to!string(fd.originalType.toChars());
+							auto paren = indexOf(callTips, '(');
+							callTips = callTips[0..paren] ~ " " ~ to!string(fd) ~ callTips[paren..$];
+						}
 					}
+
+					if (auto td = x.value.isTemplateDeclaration()) {
+						callTips = to!string(td.toChars());
+					}
+
+					break;
 				}
 			scp = scp.enclosing;
 		}
