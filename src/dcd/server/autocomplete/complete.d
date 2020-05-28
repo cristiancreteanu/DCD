@@ -51,7 +51,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("/home/cristian/dlang", 78, 21); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 106, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -430,6 +430,21 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 								//			"ref *struct name*(*list of params*)"
 								// ref is dropped in the following
 								callTips ~= sig[indexOf(sig, sd.ident.toString())..$];
+							}
+						}
+					}
+					else if (auto ad = x.value.isAliasDeclaration) {
+						if (auto fd = ad.aliassym.isFuncDeclaration())
+						{
+							if (!callTips.empty)
+							callTips ~= "\n";
+
+							if (fd.isAuto()) {
+								callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
+							} else {
+								auto sig = to!string(fd.originalType.toChars());
+								auto paren = indexOf(sig, '(');
+								callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
 							}
 						}
 					}
