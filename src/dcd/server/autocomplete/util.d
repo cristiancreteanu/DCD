@@ -129,7 +129,8 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
     while (lexer.nextToken()) {
         tokenArray ~= lexer.token;
 
-        if (lexer.token.value == TOK.endOfFile) break;
+        if (lexer.token.value == TOK.endOfFile)
+			break;
     }
 
 	const(Token)[] beforeTokens;

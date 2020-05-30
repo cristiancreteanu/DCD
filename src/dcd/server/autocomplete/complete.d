@@ -51,7 +51,7 @@ import dmd.gluelayer;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 106, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 79, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -194,7 +194,6 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	// an identifier.
 	TOK significantTokenType;
 
-	writeln(beforeTokens[$ - 2]);
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1].value == TOK.identifier)
 	{
 		// Set partial to the slice of the identifier between the beginning
