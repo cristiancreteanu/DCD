@@ -18,12 +18,15 @@
 
 module dcd.server.autocomplete.util;
 
+import core.stdc.string : strcmp;
+
 import std.algorithm;
 import stdx.allocator;
 import std.experimental.logger;
 import std.range;
 import std.string;
 import std.typecons;
+import std.conv : to;
 
 import dcd.common.messages;
 
@@ -36,8 +39,17 @@ import dmd.globals;
 import dmd.declaration;
 import dmd.dimport;
 import dmd.func;
+import dmd.dmodule;
+import dmd.semantic2;
+import dmd.semantic3;
+import dmd.dsymbolsem;
+import dmd.compiler;
+import dmd.func;
+import dmd.statement;
 
 import std.stdio : writeln;
+
+Loc cursorLoc = Loc("", 79, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 enum ImportKind : ubyte
 {
@@ -97,6 +109,47 @@ bool shouldSwapWithType(CompletionType completionType, Dsymbol symbol,
 		|| (completionType == completionType.calltips && symbol.isVarDeclaration())) ;
 }
 
+Scope *scp;
+Loc cPos;
+
+void semanticAnalysis(ref Module rootModule)
+{
+	rootModule.importAll(null);
+    rootModule.dsymbolSemantic(null);
+
+	Module.dprogress = 1;
+    Module.runDeferredSemantic();
+
+	rootModule.semantic2(null);
+	Module.runDeferredSemantic2();
+
+	rootModule.semantic3(null);
+	Module.runDeferredSemantic3();
+}
+
+/**
+
+*/
+Scope* getCursorScope(const(Token)[] tokens,
+	Loc cursorPosition, ref Module rootModule)
+{
+	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
+
+	cPos = cursorPosition;
+	cPos.filename = to!string(rootModule.srcfile).ptr;
+	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
+		if (s.loc.linnum == cPos.linnum
+			&& strcmp(s.loc.filename, cPos.filename) == 0) {
+            sc.setNoFree();
+			scp = sc;
+        }
+	};
+
+	semanticAnalysis(rootModule);
+
+	return scp;
+}
+
 // istring stringToken()(auto ref const Token a)
 // {
 // 	return internString(a.text is null ? str(a.type) : a.text);
@@ -149,27 +202,6 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, Loc cursorPosition,
 	return beforeTokens;
 }
 
-/**
- * Params:
- *     request = the autocompletion request
- *     type = type the autocompletion type
- * Returns:
- *     all symbols that should be considered for the autocomplete list based on
- *     the request's source code, cursor position, and completion type.
- */
-SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, IAllocator allocator)
-{
-	const(Token)[] tokenArray;
-	// auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-	// 	request.cursorPosition, cache, tokenArray);
-	// ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-	// 	rba, request.cursorPosition, moduleCache);
-	// auto expression = getExpression(beforeTokens);
-	// return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
-	// 	request.cursorPosition, type), pair.symbol, pair.scope_);
-	return SymbolStuff(); ///////?!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-}
 
 bool isSliceExpression(T)(T tokens, size_t index) //!!!!!!!!!!!!!!
 {
@@ -466,32 +498,6 @@ bool isSliceExpression(T)(T tokens, size_t index) //!!!!!!!!!!!!!!
 // 	return symbols;
 // }
 
-	// case tok!"int":
-	// case tok!"uint":
-	// case tok!"long":
-	// case tok!"ulong":
-	// case tok!"char":
-	// case tok!"wchar":
-	// case tok!"dchar":
-	// case tok!"bool":
-	// case tok!"byte":
-	// case tok!"ubyte":
-	// case tok!"short":
-	// case tok!"ushort":
-	// case tok!"cent":
-	// case tok!"ucent":
-	// case tok!"float":
-	// case tok!"ifloat":
-	// case tok!"cfloat":
-	// case tok!"idouble":
-	// case tok!"cdouble":
-	// case tok!"double":
-	// case tok!"real":
-	// case tok!"ireal":
-	// case tok!"creal":
-	// case tok!"this":
-	// case tok!"super":
-	// case tok!"identifier":
 enum TYPE_IDENT_CASES = q{
 	case TOK.int8:
 	case TOK.uns8:

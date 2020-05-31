@@ -28,6 +28,8 @@ import dcd.common.messages;
 
 import dmd.dmodule;
 
+import std.stdio : writeln;
+
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -39,6 +41,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	ref Module rootModule)
 {
 //	trace("Getting doc comments");
+	writeln(request);
 	AutocompleteResponse response;
 	// RollbackAllocator rba;
 	// auto allocator = scoped!(ASTAllocator)();

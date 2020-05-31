@@ -40,18 +40,12 @@ import dmd.dmodule;
 import dmd.tokens;
 import dmd.globals;
 import dmd.statement;
-import dmd.semantic2;
-import dmd.semantic3;
-import dmd.dsymbolsem;
-import dmd.compiler;
-import dmd.func;
+
 
 import dmd.gluelayer;
 
 
 import std.stdio : writeln;
-
-Loc cursorLoc = Loc("", 79, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 /**
@@ -206,7 +200,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 
 		// !!!!!!!!!!!!!!!!!!
 		if ((cursorPosition.linnum > t.loc.linnum || (cursorPosition.linnum == t.loc.linnum && cursorPosition.charnum >= t.loc.charnum))
-				&& cursorPosition.charnum - t.loc.charnum <= strlen(t.ptr)) // sa fie bine aici cu colnum???
+				&& cursorPosition.charnum - t.loc.charnum <= strlen(t.ident.toChars())) // sa fie bine aici cu colnum???
 		{
 			partial = to!string(t.ptr[0 .. cursorPosition.charnum - t.loc.charnum]);
 			// issue 442 - prevent `partial` to start in the middle of a MBC
@@ -239,10 +233,10 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	mixin(TYPE_IDENT_CASES);
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
+		auto scp = getCursorScope(tokenArray, cursorPosition, rootModule);
 		writeln("33333333333333333333333333");
-		scope(exit) pair.destroy();
-		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+		scope(exit) scp.destroy();
+		response.setCompletions(scp, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
@@ -253,65 +247,15 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.semicolon:
 	case TOK.rightCurly:
 	case TOK.comma:
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, Loc.initial, rootModule);
-		scope(exit) pair.destroy();
-		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+		auto scp = getCursorScope(tokenArray, Loc.initial, rootModule);
+		scope(exit) scp.destroy();
+		response.setCompletions(scp, getExpression(beforeTokens),
 			Loc.initial, CompletionType.identifiers, false, partial);
 		break;
 	default:
 		break;
 	}
 	return response;
-}
-
-Scope *scp;
-Loc cPos;
-/**
-
-*/
-ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
-	Loc cursorPosition, ref Module rootModule)
-{
-	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
-
-	cPos = cursorPosition;
-	cPos.filename = to!string(rootModule.srcfile).ptr; /////////////////////////looooooooooc
-	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
-		if (s.loc.linnum == cPos.linnum
-			&& strcmp(s.loc.filename, cPos.filename) == 0) {
-            sc.setNoFree();
-			scp = sc;
-        }
-	};
-
-	rootModule.importAll(null);
-
-    rootModule.dsymbolSemantic(null);
-
-	Module.dprogress = 1;
-    Module.runDeferredSemantic();
-
-	rootModule.semantic2(null);
-	Module.runDeferredSemantic2();
-
-	rootModule.semantic3(null);
-	Module.runDeferredSemantic3();
-
-	// writeln(scp);
-
-	return ScopeSymbolPair(null, scp);
-}
-
-struct ScopeSymbolPair
-{
-	void destroy()
-	{
-		typeid(Dsymbol).destroy(symbol);
-		typeid(Scope).destroy(scope_);
-	}
-
-	Dsymbol* symbol;
-	Scope* scope_;
 }
 
 /**
@@ -379,9 +323,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	mixin(STRING_LITERAL_CASES);
 		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
 		// as putea pur si simplu sa traversez AST-ul si aia e
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, cursorPosition, rootModule);
+		auto scp = getCursorScope(tokenArray, cursorPosition, rootModule);
 		string callTips;
-		auto scp = pair.scope_;
 		while (scp) {
 			if (scp.scopesym && scp.scopesym.symtab)
 				foreach (x; scp.scopesym.symtab.tab.asRange()) {
@@ -451,9 +394,9 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			scp = scp.enclosing;
 		}
 
-		scope(exit) pair.destroy();
+		scope(exit) scp.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		response.setCompletions(pair.scope_, expression,
+		response.setCompletions(scp, expression,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
 		break;
 	default:
@@ -607,19 +550,7 @@ body
 		return response;
 	}
 
-	rootModule.parse();
-	rootModule.importAll(null);
-
-	rootModule.dsymbolSemantic(null);
-
-	Module.dprogress = 1;
-    Module.runDeferredSemantic();
-
-	rootModule.semantic2(null);
-	Module.runDeferredSemantic2();
-
-	rootModule.semantic3(null);
-	Module.runDeferredSemantic3();
+	semanticAnalysis(rootModule); //!!!!!!!!!!!!!!!!
 
 	Dsymbol[] symbols;
 	foreach (mod; rootModule.aimports) {
@@ -795,7 +726,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	// "Module Scope Operator" : filter module decls
 	else if (tokens.length == 1 && tokens[0].value == /*tok!"."*/ TOK.dot)
 	{//!!!!!!!!!!!!!!!!!!!!
-		// auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		// auto currentSymbols = completionScope.getCursorScope(cursorPosition);
 		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 		// 		// TODO: for now since "module.partial" is transformed into ".partial"
 		// 		// we cant put the imported symbols that should be in the list.
