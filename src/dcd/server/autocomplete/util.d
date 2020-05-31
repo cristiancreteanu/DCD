@@ -56,7 +56,7 @@ import dmd.arraytypes;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 120, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("/home/cristian/dlang/Graduation/correct.d", 85, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 enum ImportKind : ubyte
 {

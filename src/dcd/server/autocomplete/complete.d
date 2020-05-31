@@ -219,7 +219,34 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1].value == TOK.dot)
+	{
 		significantTokenType = beforeTokens[$ - 2].value;
+
+		if (beforeTokens[$ - 2].value == TOK.identifier)
+		{
+			auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
+			foreach (id; *symbols)
+				if (strcmp(id.ident.toChars(), beforeTokens[$ - 2].ident.toChars()) == 0)
+					if (auto dec = id.isDeclaration())
+						foreach (type; *symbols)
+							if (to!string(type) == to!string(dec.type))
+								if (auto sds = type.isScopeDsymbol())
+								{
+									Dsymbol[] members;
+									foreach (mem; *sds.members)
+										if (mem !is null
+											&& mem.ident !is null
+											&& !mem.isImport()
+											&& strcmp(mem.loc.filename, cursorLoc.filename) == 0
+											&& strcmp(mem.ident.toChars(), "__ctor") != 0)
+											members ~= mem;
+
+									foreach (mem; members)
+										writeln (mem.ident);
+								}
+			return response;
+		}
+	}
 	else
 		return response;
 
