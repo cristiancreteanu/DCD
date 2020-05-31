@@ -18,15 +18,19 @@
 
 module dcd.server.autocomplete.doc;
 
+import core.stdc.string : strcmp;
+
 import std.algorithm;
 import std.array;
 import std.experimental.logger;
 import std.typecons;
+import std.conv : to;
 
 import dcd.server.autocomplete.util;
 import dcd.common.messages;
 
 import dmd.dmodule;
+import dmd.tokens;
 
 import std.stdio : writeln;
 
@@ -41,31 +45,22 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	ref Module rootModule)
 {
 //	trace("Getting doc comments");
-	writeln(request);
 	AutocompleteResponse response;
-	// RollbackAllocator rba;
-	// auto allocator = scoped!(ASTAllocator)();
-	// auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
-	// SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-	// 	allocator, &rba, cache, moduleCache);
-	// if (stuff.symbols.length == 0)
-	// 	warning("Could not find symbol");
-	// else
-	// {
-	// 	// first symbol allows ditto if it's the first documentation,
-	// 	// because then it takes documentation from a symbol with different name
-	// 	// which isn't inside the stuff.symbols range.
-	// 	bool firstSymbol = true;
-	// 	foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty))
-	// 	{
-	// 		if (!firstSymbol && symbol.doc.ditto)
-	// 			continue;
-	// 		firstSymbol = false;
 
-	// 		AutocompleteResponse.Completion c;
-	// 		c.documentation = symbol.doc;
-	// 		response.completions ~= c;
-	// 	}
-	// }
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		cursorLoc, tokenArray, rootModule);
+
+	auto symbols = getSymbolsInCompletionScope(cursorLoc, rootModule);
+
+	foreach (sym; *symbols) {
+		if (strcmp(sym.ident.toChars(), beforeTokens[$ - 1].ident.toChars()) == 0)
+		{
+			writeln(to!string(sym.comment));
+			break;
+		}
+	}
+
+
 	return response;
 }

@@ -46,10 +46,17 @@ import dmd.dsymbolsem;
 import dmd.compiler;
 import dmd.func;
 import dmd.statement;
+import dmd.dclass;
+import dmd.dstruct;
+import dmd.visitor;
+import dmd.nspace;
+import dmd.denum;
+import dmd.arraytypes;
+
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("", 79, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Loc cursorLoc = Loc("", 120, 7); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 enum ImportKind : ubyte
 {
@@ -109,8 +116,24 @@ bool shouldSwapWithType(CompletionType completionType, Dsymbol symbol,
 		|| (completionType == completionType.calltips && symbol.isVarDeclaration())) ;
 }
 
-Scope *scp;
-Loc cPos;
+private struct CallbackHelper {
+    static Loc cursorLoc;
+    static Scope *scp;
+
+    static extern (C++) void statementSem(Statement s, Scope *sc) {
+        if (s.loc.linnum == cursorLoc.linnum
+                && strcmp(s.loc.filename, cursorLoc.filename) == 0) {
+            sc.setNoFree();
+            scp = sc;
+        }
+    }
+};
+
+private bool isBefore(Loc loc1, Loc loc2)
+{
+    return loc1.linnum != loc2.linnum? loc1.linnum < loc2.linnum
+                                    : loc1.charnum < loc2.charnum;
+}
 
 void semanticAnalysis(ref Module rootModule)
 {
@@ -127,27 +150,137 @@ void semanticAnalysis(ref Module rootModule)
 	Module.runDeferredSemantic3();
 }
 
+private extern (C++) final class DsymbolsScopeRetrievingVisitor : Visitor
+{
+    Loc loc;
+    Dsymbols *symbols;
+    alias visit = Visitor.visit;
+
+public:
+    extern (D) this(Loc loc, Dsymbols* symbols)
+    {
+        this.loc = loc;
+		this.symbols = symbols;
+    }
+
+    override void visit(Dsymbol s)
+    {
+    }
+
+    override void visit(ScopeDsymbol s)
+    {
+        visitScopeDsymbol(s);
+    }
+
+    override void visit(EnumDeclaration d)
+    {
+        visitScopeDsymbol(d);
+    }
+
+    override void visit(Nspace d)
+    {
+        visitScopeDsymbol(d);
+    }
+
+    override void visit(StructDeclaration d)
+    {
+        visitScopeDsymbol(d);
+    }
+
+    override void visit(ClassDeclaration d)
+    {
+        visitScopeDsymbol(d);
+    }
+
+    void visitBaseClasses(ClassDeclaration d)
+    {
+        visitScopeDsymbol(d);
+    }
+
+    override void visit(Module m)
+    {
+        visitScopeDsymbol(m);
+    }
+
+    private void visitScopeDsymbol(ScopeDsymbol scopeDsym)
+    {
+        if (!scopeDsym.members)
+            return;
+
+        Dsymbol dsym;
+        foreach (i, s; *scopeDsym.members)
+        {
+            if (s is null || s.ident is null)
+                continue;
+
+            // if the current symbol is from another module
+            if (auto m = scopeDsym.isModule())
+                if (!(to!string(s.loc.filename).endsWith(m.ident.toString() ~ ".d")))
+                    continue;
+
+            if (!s.isImport())
+                symbols.push(s);
+
+            if (!i || dsym is null) {
+                dsym = s;
+                continue;
+            }
+
+            // only visit a symbol which contains the cursor
+            // choose the symbol which is before and the closest to the cursor
+            if (isBefore(dsym.loc, loc)
+                && isBefore(dsym.loc, s.loc)
+                && isBefore(s.loc, loc)) {
+                dsym = s;
+            }
+        }
+
+        dsym.accept(this);
+    }
+}
+
 /**
 
 */
-Scope* getCursorScope(const(Token)[] tokens,
-	Loc cursorPosition, ref Module rootModule)
+Dsymbols* getSymbolsInCompletionScope(Loc cursorPosition, ref Module rootModule)
 {
 	rootModule.parse(); // o sa fie si aici nevoie de un autocomplete parser
 
-	cPos = cursorPosition;
-	cPos.filename = to!string(rootModule.srcfile).ptr;
+	CallbackHelper.cursorLoc = cursorPosition;
+	CallbackHelper.cursorLoc.filename = to!string(rootModule.srcfile).ptr;
 	Compiler.onStatementSemanticStart = function void(Statement s, Scope *sc) {
-		if (s.loc.linnum == cPos.linnum
-			&& strcmp(s.loc.filename, cPos.filename) == 0) {
+		if (s.loc.linnum == CallbackHelper.cursorLoc.linnum
+			&& strcmp(s.loc.filename, CallbackHelper.cursorLoc.filename) == 0) {
             sc.setNoFree();
-			scp = sc;
+			CallbackHelper.scp = sc;
         }
 	};
 
 	semanticAnalysis(rootModule);
 
-	return scp;
+	auto symbols = new Dsymbols();
+
+    // if scope could not be retrieved through the callback, then traverse AST
+    if (!CallbackHelper.scp) {
+        auto visitor = new DsymbolsScopeRetrievingVisitor(CallbackHelper.cursorLoc, symbols);
+        rootModule.accept(visitor);
+
+        symbols = visitor.symbols;
+    }
+	else
+	{
+		scope(exit) CallbackHelper.scp.destroy();
+		while (CallbackHelper.scp) {
+			if (CallbackHelper.scp.scopesym && CallbackHelper.scp.scopesym.symtab)
+				foreach (x; CallbackHelper.scp.scopesym.symtab.tab.asRange()) {
+					symbols.push(x.value);
+				}
+			CallbackHelper.scp = CallbackHelper.scp.enclosing;
+		}
+	}
+
+
+	return symbols;
 }
 
 // istring stringToken()(auto ref const Token a)

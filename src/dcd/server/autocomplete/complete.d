@@ -40,6 +40,7 @@ import dmd.dmodule;
 import dmd.tokens;
 import dmd.globals;
 import dmd.statement;
+import dmd.arraytypes;
 
 
 import dmd.gluelayer;
@@ -233,10 +234,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	mixin(TYPE_IDENT_CASES);
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
-		auto scp = getCursorScope(tokenArray, cursorPosition, rootModule);
+		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
 		writeln("33333333333333333333333333");
-		scope(exit) scp.destroy();
-		response.setCompletions(scp, getExpression(beforeTokens),
+		response.setCompletions(symbols, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
@@ -247,9 +247,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.semicolon:
 	case TOK.rightCurly:
 	case TOK.comma:
-		auto scp = getCursorScope(tokenArray, Loc.initial, rootModule);
-		scope(exit) scp.destroy();
-		response.setCompletions(scp, getExpression(beforeTokens),
+		auto symbols = getSymbolsInCompletionScope(Loc.initial, rootModule);
+		response.setCompletions(symbols, getExpression(beforeTokens),
 			Loc.initial, CompletionType.identifiers, false, partial);
 		break;
 	default:
@@ -323,80 +322,77 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	mixin(STRING_LITERAL_CASES);
 		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
 		// as putea pur si simplu sa traversez AST-ul si aia e
-		auto scp = getCursorScope(tokenArray, cursorPosition, rootModule);
+		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
 		string callTips;
-		while (scp) {
-			if (scp.scopesym && scp.scopesym.symtab)
-				foreach (x; scp.scopesym.symtab.tab.asRange()) {
-					if (to!string(x.value.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
+		foreach (sym; *symbols)
+		{
+			if (to!string(sym.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
+				continue;
+
+			writeln("haaaaaaaahelujah");
+			if (auto fd = sym.isFuncDeclaration())
+			{
+				if (!callTips.empty)
+					callTips ~= "\n";
+
+				if (fd.isAuto()) {
+					callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
+				} else {
+					auto sig = to!string(fd.originalType.toChars());
+					auto paren = indexOf(sig, '(');
+					callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
+				}
+			}
+			else if (auto td = sym.isTemplateDeclaration())
+			{
+				if (!callTips.empty)
+					callTips ~= "\n";
+
+				callTips ~= to!string(td.toChars());
+			}
+			else if (auto sd = sym.isAggregateDeclaration()) // struct/class
+			{
+				// searching for constructor
+				foreach (mem; *sd.members)
+				{
+					if (mem is null || mem.ident is null)
 						continue;
 
-					writeln("haaaaaaaahelujah");
-					if (auto fd = x.value.isFuncDeclaration())
+					if (strcmp(mem.ident.toChars(), "__ctor") == 0)
 					{
+						auto fd = mem.isFuncDeclaration();
+						auto sig = to!string(fd.type);
+
 						if (!callTips.empty)
 							callTips ~= "\n";
 
-						if (fd.isAuto()) {
-							callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
-						} else {
-							auto sig = to!string(fd.originalType.toChars());
-							auto paren = indexOf(sig, '(');
-							callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
-						}
-					}
-					else if (auto td = x.value.isTemplateDeclaration())
-					{
-						if (!callTips.empty)
-							callTips ~= "\n";
-
-						callTips ~= to!string(td.toChars());
-					}
-					else if (auto sd = x.value.isAggregateDeclaration()) // struct/class
-					{
-						// searching for constructor
-						foreach (mem; *sd.members)
-						{
-							if (mem is null || mem.ident is null)
-								continue;
-
-							if (strcmp(mem.ident.toChars(), "__ctor") == 0)
-							{
-								auto fd = mem.isFuncDeclaration();
-								auto sig = to!string(fd.type);
-
-								if (!callTips.empty)
-									callTips ~= "\n";
-
-								// sig has the following format:
-								//			"ref *struct name*(*list of params*)"
-								// ref is dropped in the following
-								callTips ~= sig[indexOf(sig, sd.ident.toString())..$];
-							}
-						}
-					}
-					else if (auto ad = x.value.isAliasDeclaration) {
-						if (auto fd = ad.aliassym.isFuncDeclaration())
-						{
-							if (!callTips.empty)
-							callTips ~= "\n";
-
-							if (fd.isAuto()) {
-								callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
-							} else {
-								auto sig = to!string(fd.originalType.toChars());
-								auto paren = indexOf(sig, '(');
-								callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
-							}
-						}
+						// sig has the following format:
+						//			"ref *struct name*(*list of params*)"
+						// ref is dropped in the following
+						callTips ~= sig[indexOf(sig, sd.ident.toString())..$];
 					}
 				}
-			scp = scp.enclosing;
+			}
+			else if (auto ad = sym.isAliasDeclaration) {
+				if (auto fd = ad.aliassym.isFuncDeclaration())
+				{
+					if (!callTips.empty)
+					callTips ~= "\n";
+
+					if (fd.isAuto()) {
+						callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
+					} else {
+						auto sig = to!string(fd.originalType.toChars());
+						auto paren = indexOf(sig, '(');
+						callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
+					}
+				}
+			}
 		}
 
-		scope(exit) scp.destroy();
+
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		response.setCompletions(scp, expression,
+		response.setCompletions(symbols, expression,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
 		break;
 	default:
@@ -674,7 +670,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
  *
  */
 void setCompletions(T)(ref AutocompleteResponse response,
-	Scope* completionScope, T tokens, Loc cursorPosition,
+	Dsymbols* symbols, T tokens, Loc cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
 	static void addSymToResponse(const(Dsymbol)* s, ref AutocompleteResponse r, string p,
@@ -702,13 +698,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (partial !is null && tokens.length == 0)
 	{//!!!!!!!!!!!!!!!!!!
 		Dsymbol[] currentSymbols;
-		Scope *scp = completionScope;
-		while (scp) {
-			if (scp.scopesym && scp.scopesym.symtab)
-				foreach (x; scp.scopesym.symtab.tab.asRange()) {
-					currentSymbols ~= x.value;
-				}
-			scp = scp.enclosing;
+		foreach (sym; *symbols)
+		{
+			currentSymbols ~= sym;
 		}
 
 		// writeln(currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))));
@@ -726,7 +718,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	// "Module Scope Operator" : filter module decls
 	else if (tokens.length == 1 && tokens[0].value == /*tok!"."*/ TOK.dot)
 	{//!!!!!!!!!!!!!!!!!!!!
-		// auto currentSymbols = completionScope.getCursorScope(cursorPosition);
+		// auto currentSymbols = completionScope.getSymbolsInCompletionScope(cursorPosition);
 		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 		// 		// TODO: for now since "module.partial" is transformed into ".partial"
 		// 		// we cant put the imported symbols that should be in the list.
