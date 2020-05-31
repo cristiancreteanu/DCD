@@ -269,7 +269,7 @@ Dsymbols* getSymbolsInCompletionScope(Loc cursorPosition, ref Module rootModule)
     }
 	else
 	{
-		scope(exit) CallbackHelper.scp.destroy();
+		scope (exit) CallbackHelper.scp.destroy();
 		while (CallbackHelper.scp) {
 			if (CallbackHelper.scp.scopesym && CallbackHelper.scp.scopesym.symtab)
 				foreach (x; CallbackHelper.scp.scopesym.symtab.tab.asRange()) {
@@ -283,16 +283,6 @@ Dsymbols* getSymbolsInCompletionScope(Loc cursorPosition, ref Module rootModule)
 	return symbols;
 }
 
-// istring stringToken()(auto ref const Token a)
-// {
-// 	return internString(a.text is null ? str(a.type) : a.text);
-// }
-
-//void dumpTokens(const Token[] tokens)
-//{
-	//foreach (t; tokens)
-		//writeln(t.line, ":", t.column, " ", stringToken(t));
-//}
 
 /**
  * Params:

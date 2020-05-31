@@ -88,6 +88,7 @@ int runServer(string[] args)
 
 	sharedLog.fatalHandler = () {};
 
+	global.params.doDocComments = true;
 	global.path = new Strings();
     global.path.push("/home/cristian/dlang/phobos");
     global.path.push("/home/cristian/dlang/druntime/import");
@@ -317,9 +318,7 @@ int runServer(string[] args)
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			global.params.doDocComments = true;
 			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
-			global.params.doDocComments = false;
 		}
 		else if (request.kind & RequestKind.symbolLocation)
 			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
@@ -498,7 +497,7 @@ Module createModule(const char *file)
      * its path and extension.
      */
     auto id = Identifier.idPool(name);
-    auto m = new Module(file.toDString, id, true, global.params.doHdrGeneration);
+    auto m = new Module(file.toDString, id, global.params.doDocComments, global.params.doHdrGeneration);
 
     return m;
 }
