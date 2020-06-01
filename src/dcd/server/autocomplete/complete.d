@@ -250,9 +250,19 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 									members ~= mem;
 
 							foreach (mem; members)
-								writeln (mem.ident);
+							{
+								auto declaration = mem.isDeclaration();
+								response.completions ~= AutocompleteResponse.Completion(
+										to!string(mem.ident),
+										getSymbolCompletionKind(mem),
+										declaration is null ? null : to!string(declaration.type),
+										to!string(mem.loc.filename), 0,
+										// symbol.loc.linnum, symbol.loc.charnum,
+										to!string(mem.comment));
+							}
 						}
 				}
+			response.completionType = CompletionType.identifiers;
 			return response;
 		}
 	}
@@ -276,10 +286,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		// 	cursorPosition, CompletionType.identifiers, false, partial);
 		foreach (symbol; *symbols)
 		{
-			if (!to!string(symbol.ident).startsWith(partial))
+			if (!toUpper(symbol.ident.toString()).startsWith(toUpper(partial)))
 				continue;
-
-			writeln("ajungeeeeeeeeeeeeeeeeeeeeeeee");
 
 			auto dec = symbol.isDeclaration();
 			response.completions ~= AutocompleteResponse.Completion(
@@ -289,6 +297,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 										to!string(symbol.loc.filename), 0,
 										// symbol.loc.linnum, symbol.loc.charnum,
 										to!string(symbol.comment));
+			response.completionType = CompletionType.identifiers;
 		}
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
@@ -345,7 +354,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		{
 			response.completions ~= AutocompleteResponse.Completion(
 				completion.identifier,
-				0, //CompletionKind.keyword,
+				CompletionKind.keyword,
 				null, null, 0, // definition, symbol path+location
 				completion.ddoc
 			);
@@ -375,7 +384,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
 		// as putea pur si simplu sa traversez AST-ul si aia e
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-		string callTips;
+		string[] callTips;
 		foreach (sym; *symbols)
 		{
 			if (to!string(sym.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
@@ -384,22 +393,16 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			writeln("haaaaaaaahelujah");
 			if (auto fd = sym.isFuncDeclaration())
 			{
-				if (!callTips.empty)
-					callTips ~= "\n";
-
 				if (fd.isAuto()) {
 					callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
 				} else {
 					auto sig = to!string(fd.originalType.toChars());
 					auto paren = indexOf(sig, '(');
-					callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
+					callTips ~= sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
 				}
 			}
 			else if (auto td = sym.isTemplateDeclaration())
 			{
-				if (!callTips.empty)
-					callTips ~= "\n";
-
 				callTips ~= to!string(td.toChars());
 			}
 			else if (auto sd = sym.isAggregateDeclaration()) // struct/class
@@ -415,9 +418,6 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 						auto fd = mem.isFuncDeclaration();
 						auto sig = to!string(fd.type);
 
-						if (!callTips.empty)
-							callTips ~= "\n";
-
 						// sig has the following format:
 						//			"ref *struct name*(*list of params*)"
 						// ref is dropped in the following
@@ -428,24 +428,26 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			else if (auto ad = sym.isAliasDeclaration) {
 				if (auto fd = ad.aliassym.isFuncDeclaration())
 				{
-					if (!callTips.empty)
-					callTips ~= "\n";
-
 					if (fd.isAuto()) {
 						callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
 					} else {
 						auto sig = to!string(fd.originalType.toChars());
 						auto paren = indexOf(sig, '(');
-						callTips = sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
+						callTips ~= sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
 					}
 				}
 			}
 		}
 
-
-		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		// response.setCompletions(symbols, expression,
-		// 	cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
+		foreach (tip; callTips)
+		{
+			response.completions ~= AutocompleteResponse.Completion(
+										null, CompletionKind.functionName,
+										tip, null, 0,
+										// symbol.loc.linnum, symbol.loc.charnum,
+										null);
+		}
+		response.completionType = CompletionType.calltips;
 		break;
 	default:
 		break;
@@ -539,6 +541,7 @@ in
 }
 body
 {
+	writeln("daaaaaaaaaaaaaaaaaaa");
 	AutocompleteResponse response;
 	if (beforeTokens.length <= 2)
 		return response;
@@ -648,6 +651,7 @@ body
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 	ref Module cache)
 {
+				writeln("aiciiiiiiiiiiiiiiiiii");
 	response.completionType = CompletionType.identifiers;
 	string partial = null;
 	if (tokens[$ - 1].value == TOK.identifier)
@@ -674,7 +678,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 			auto n = importPath.baseName(".d").baseName(".di");
 			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-				response.completions ~= AutocompleteResponse.Completion(n, /*CompletionKind.moduleName*/ 0, null, importPath, 0);
+				response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, importPath, 0);
 		}
 		else
 		{
@@ -690,10 +694,11 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 				if (name.baseName.startsWith(".#"))
 					continue;
 
+
 				auto n = name.baseName(".d").baseName(".di");
 				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-					response.completions ~= AutocompleteResponse.Completion(n, /*CompletionKind.moduleName*/ 0, null, name, 0);
+					response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, name, 0);
 				else if (isDir(name))
 				{
 					if (n[0] != '.' && (partial is null || n.startsWith(partial)))
@@ -702,7 +707,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 						immutable packageDIPath = buildPath(name, "package.di");
 						immutable packageD = exists(packageDPath);
 						immutable packageDI = exists(packageDIPath);
-						immutable kind = packageD || packageDI ? /*CompletionKind.moduleName*/ 0 : /*CompletionKind.packageName*/ 1;
+						immutable kind = packageD || packageDI ? CompletionKind.moduleName : CompletionKind.packageName;
 						immutable file = packageD ? packageDPath : packageDI ? packageDIPath : name;
 						response.completions ~= AutocompleteResponse.Completion(n, kind, null, file, 0);
 					}
