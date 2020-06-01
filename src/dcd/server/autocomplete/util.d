@@ -56,7 +56,6 @@ import dmd.arraytypes;
 
 import std.stdio : writeln;
 
-Loc cursorLoc = Loc("/home/cristian/dlang/Graduation/correct.d", 85, 9); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 enum ImportKind : ubyte
 {
@@ -114,6 +113,44 @@ bool shouldSwapWithType(CompletionType completionType, Dsymbol symbol,
 		|| symbol.isFuncDeclaration();
 	return isInteresting && (completionType == CompletionType.identifiers
 		|| (completionType == completionType.calltips && symbol.isVarDeclaration())) ;
+}
+
+CompletionKind getSymbolCompletionKind(Dsymbol symbol)
+{
+	// isKeyword mai ramane
+	if (symbol.isClassDeclaration())
+		return CompletionKind.className;
+	else if (symbol.isInterfaceDeclaration())
+		return CompletionKind.interfaceName;
+	else if (symbol.isStructDeclaration())
+		return CompletionKind.structName;
+	else if (symbol.isUnionDeclaration())
+		return CompletionKind.unionName;
+	else if (symbol.isVarDeclaration())
+	{
+		if (symbol.isMember())
+			return CompletionKind.memberVariableName;
+
+		return CompletionKind.variableName;
+	}
+	else if (symbol.isFuncDeclaration())
+		return CompletionKind.functionName;
+	else if (symbol.isEnumDeclaration())
+		return CompletionKind.enumName;
+	else if (symbol.isEnumMember())
+		return CompletionKind.enumMember;
+	else if (symbol.isPackage())
+		return CompletionKind.packageName;
+	else if (symbol.isModule())
+		return CompletionKind.moduleName;
+	else if (symbol.isAliasDeclaration())
+		return CompletionKind.aliasName;
+	else if (symbol.isTemplateDeclaration())
+		return CompletionKind.templateName;
+	else if (symbol.isTemplateMixin())
+		return CompletionKind.mixinTemplateName;
+
+	return CompletionKind.dummy;
 }
 
 private struct CallbackHelper {

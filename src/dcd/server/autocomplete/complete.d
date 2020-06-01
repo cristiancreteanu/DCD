@@ -58,6 +58,7 @@ import std.stdio : writeln;
  */
 public AutocompleteResponse complete(const AutocompleteRequest request, Module rootModule)
 {
+	auto cursorLoc = Loc(rootModule.srcfile.toChars(), request.cursorLinnum, request.cursorCharnum);
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		cursorLoc, tokenArray, rootModule);
@@ -227,23 +228,31 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 			auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
 			foreach (id; *symbols)
 				if (strcmp(id.ident.toChars(), beforeTokens[$ - 2].ident.toChars()) == 0)
-					if (auto dec = id.isDeclaration())
-						foreach (type; *symbols)
-							if (to!string(type) == to!string(dec.type))
-								if (auto sds = type.isScopeDsymbol())
-								{
-									Dsymbol[] members;
-									foreach (mem; *sds.members)
-										if (mem !is null
-											&& mem.ident !is null
-											&& !mem.isImport()
-											&& strcmp(mem.loc.filename, cursorLoc.filename) == 0
-											&& strcmp(mem.ident.toChars(), "__ctor") != 0)
-											members ~= mem;
+				{
+					auto dec = id.isDeclaration();
+					if (dec is null)
+						continue;
 
-									foreach (mem; members)
-										writeln (mem.ident);
-								}
+					foreach (type; *symbols)
+						if (to!string(type) == to!string(dec.type))
+						{
+							auto sds = type.isScopeDsymbol();
+							if (sds is null)
+								continue;
+
+							Dsymbol[] members;
+							foreach (mem; *sds.members)
+								if (mem !is null
+									&& mem.ident !is null
+									&& !mem.isImport()
+									&& strcmp(mem.loc.filename, cursorPosition.filename) == 0
+									&& strcmp(mem.ident.toChars(), "__ctor") != 0)
+									members ~= mem;
+
+							foreach (mem; members)
+								writeln (mem.ident);
+						}
+				}
 			return response;
 		}
 	}
@@ -263,8 +272,24 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.rightBracket:
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
 		writeln("33333333333333333333333333");
-		response.setCompletions(symbols, getExpression(beforeTokens),
-			cursorPosition, CompletionType.identifiers, false, partial);
+		// response.setCompletions(symbols, getExpression(beforeTokens),
+		// 	cursorPosition, CompletionType.identifiers, false, partial);
+		foreach (symbol; *symbols)
+		{
+			if (!to!string(symbol.ident).startsWith(partial))
+				continue;
+
+			writeln("ajungeeeeeeeeeeeeeeeeeeeeeeee");
+
+			auto dec = symbol.isDeclaration();
+			response.completions ~= AutocompleteResponse.Completion(
+										to!string(symbol.ident),
+										getSymbolCompletionKind(symbol),
+										to!string(dec.type),
+										to!string(symbol.loc.filename), 0,
+										// symbol.loc.linnum, symbol.loc.charnum,
+										to!string(symbol.comment));
+		}
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case TOK.colon:
@@ -275,8 +300,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.rightCurly:
 	case TOK.comma:
 		auto symbols = getSymbolsInCompletionScope(Loc.initial, rootModule);
-		response.setCompletions(symbols, getExpression(beforeTokens),
-			Loc.initial, CompletionType.identifiers, false, partial);
+		// response.setCompletions(symbols, getExpression(beforeTokens),
+		// 	Loc.initial, CompletionType.identifiers, false, partial);
 		break;
 	default:
 		break;
@@ -419,8 +444,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 
 
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		response.setCompletions(symbols, expression,
-			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
+		// response.setCompletions(symbols, expression,
+		// 	cursorPosition, CompletionType.calltips, beforeTokens[$ - 1].value == TOK.leftBracket);
 		break;
 	default:
 		break;
@@ -691,219 +716,4 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 	}
 	if (!found)
 		warning("Could not find ", moduleParts);
-}
-
-/**
- *
- */
-void setCompletions(T)(ref AutocompleteResponse response,
-	Dsymbols* symbols, T tokens, Loc cursorPosition,
-	CompletionType completionType, bool isBracket = false, string partial = null)
-{
-	static void addSymToResponse(const(Dsymbol)* s, ref AutocompleteResponse r, string p,
-		Scope* completionScope, size_t[] circularGuard = [])
-	{
-		if (circularGuard.canFind(cast(size_t) s))
-			return;
-		// foreach (sym; s.opSlice()) // aici trebuie sa iau toate partile simbolului (parametri, campuri din struct/enum)
-		// {
-		// 	if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
-		// 		&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
-		// 		&& !r.completions.canFind!(a => a.identifier == sym.name)
-		// 		&& sym.name[0] != '*'
-		// 		&& mightBeRelevantInCompletionScope(sym, completionScope))
-		// 	{
-		// 		r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
-		// 	}
-		// 	if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
-		// 		addSymToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
-		// }
-	}
-
-	// Handle the simple case where we get all symbols in scope and filter it
-	// based on the currently entered text.
-	if (partial !is null && tokens.length == 0)
-	{//!!!!!!!!!!!!!!!!!!
-		Dsymbol[] currentSymbols;
-		foreach (sym; *symbols)
-		{
-			currentSymbols ~= sym;
-		}
-
-		// writeln(currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))));
-
-		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-		// 		&& toUpper(a.name.data).startsWith(toUpper(partial))
-		// 		&& mightBeRelevantInCompletionScope(a, completionScope)))
-		foreach (s; currentSymbols.filter!(a => toUpper(a.ident.toString()).startsWith(toUpper(partial))))
-		{
-			response.completions ~= makeSymbolCompletionInfo(s);
-		}
-		response.completionType = CompletionType.identifiers;
-		return;
-	}
-	// "Module Scope Operator" : filter module decls
-	else if (tokens.length == 1 && tokens[0].value == /*tok!"."*/ TOK.dot)
-	{//!!!!!!!!!!!!!!!!!!!!
-		// auto currentSymbols = completionScope.getSymbolsInCompletionScope(cursorPosition);
-		// foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-		// 		// TODO: for now since "module.partial" is transformed into ".partial"
-		// 		// we cant put the imported symbols that should be in the list.
-		// 		&& a.kind != CompletionKind.importSymbol
-		// 		&& a.kind != CompletionKind.dummy
-		// 		&& a.symbolFile == "stdin"
-		// 		&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
-		// 			|| partial is null)
-		// 		&& mightBeRelevantInCompletionScope(a, completionScope)))
-		// {
-		// 	response.completions ~= makeSymbolCompletionInfo(s, s.kind);
-		// }
-		// response.completionType = CompletionType.identifiers;
-		return;
-	}
-
-	if (tokens.length == 0)
-		return;
-
-	// Dsymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
-	// 	cursorPosition, completionType);
-
-	// if (symbols.length == 0)
-	// 	return;
-
-	// if (completionType == CompletionType.identifiers)
-	// {
-	// 	while (symbols[0].qualifier == SymbolQualifier.func
-	// 			|| symbols[0].kind == CompletionKind.functionName
-	// 			|| symbols[0].kind == CompletionKind.importSymbol
-	// 			|| symbols[0].kind == CompletionKind.aliasName)
-	// 	{
-	// 		symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? []
-	// 			: [symbols[0].type];
-	// 		if (symbols.length == 0)
-	// 			return;
-	// 	}
-	// 	addSymToResponse(symbols[0], response, partial, completionScope);
-	// 	response.completionType = CompletionType.identifiers;
-	// }
-	// else if (completionType == CompletionType.calltips)
-	// {
-	// 	//trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
-	// 	if (symbols[0].kind != CompletionKind.functionName
-	// 		&& symbols[0].callTip is null)
-	// 	{
-	// 		if (symbols[0].kind == CompletionKind.aliasName)
-	// 		{
-	// 			if (symbols[0].type is null || symbols[0].type is symbols[0])
-	// 				return;
-	// 			symbols = [symbols[0].type];
-	// 		}
-	// 		if (symbols[0].kind == CompletionKind.variableName)
-	// 		{
-	// 			auto dumb = symbols[0].type;
-	// 			if (dumb !is null)
-	// 			{
-	// 				if (dumb.kind == CompletionKind.functionName)
-	// 				{
-	// 					symbols = [dumb];
-	// 					goto setCallTips;
-	// 				}
-	// 				if (isBracket)
-	// 				{
-	// 					auto index = dumb.getPartsByName(internString("opIndex"));
-	// 					if (index.length > 0)
-	// 					{
-	// 						symbols = index;
-	// 						goto setCallTips;
-	// 					}
-	// 				}
-	// 				auto call = dumb.getPartsByName(internString("opCall"));
-	// 				if (call.length > 0)
-	// 				{
-	// 					symbols = call;
-	// 					goto setCallTips;
-	// 				}
-	// 			}
-	// 		}
-	// 		if (symbols[0].kind == CompletionKind.structName
-	// 			|| symbols[0].kind == CompletionKind.className)
-	// 		{
-	// 			auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
-	// 			if (constructor.length == 0)
-	// 			{
-	// 				// Build a call tip out of the struct fields
-	// 				if (symbols[0].kind == CompletionKind.structName)
-	// 				{
-	// 					response.completionType = CompletionType.calltips;
-	// 					response.completions = [generateStructConstructorCalltip(symbols[0])];
-	// 					return;
-	// 				}
-	// 			}
-	// 			else
-	// 			{
-	// 				symbols = constructor;
-	// 				goto setCallTips;
-	// 			}
-	// 		}
-	// 	}
-	// setCallTips:
-	// 	response.completionType = CompletionType.calltips;
-	// 	foreach (symbol; symbols)
-	// 	{
-	// 		if (symbol.kind != CompletionKind.aliasName && symbol.callTip !is null)
-	// 		{
-	// 			auto completion = makeSymbolCompletionInfo(symbol, char.init);
-	// 			// TODO: put return type
-	// 			response.completions ~= completion;
-	// 		}
-	// 	}
-	// }
-}
-
-bool mightBeRelevantInCompletionScope(const Dsymbol* symbol, Scope* scope_)
-{
-
-	// if (symbol.protection == tok!"private" &&
-	// 	!scope_.hasSymbolRecursive(symbol))
-	// {
-	// 	// scope is the scope of the current file so if the symbol is not in there, it's not accessible
-	// 	return false;
-	// }
-
-	return true;
-}
-
-
-AutocompleteResponse.Completion generateStructConstructorCalltip(const Dsymbol* symbol)
-in
-{
-	// assert(symbol.kind == CompletionKind.structName);!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-}
-body
-{
-	// string generatedStructConstructorCalltip = "this(";
-	// const(DSymbol)*[] fields = symbol.opSlice().filter!(
-	// 	a => a.kind == CompletionKind.variableName).map!(a => cast(const(DSymbol)*) a).array();
-	// fields.sort!((a, b) => a.location < b.location);
-	// foreach (i, field; fields)
-	// {
-	// 	if (field.kind != CompletionKind.variableName)
-	// 		continue;
-	// 	i++;
-	// 	if (field.type !is null)
-	// 	{
-	// 		generatedStructConstructorCalltip ~= field.type.name;
-	// 		generatedStructConstructorCalltip ~= " ";
-	// 	}
-	// 	generatedStructConstructorCalltip ~= field.name;
-	// 	if (i < fields.length)
-	// 		generatedStructConstructorCalltip ~= ", ";
-	// }
-	// generatedStructConstructorCalltip ~= ")";
-	// auto completion = makeSymbolCompletionInfo(symbol, char.init);
-	// completion.identifier = "this";
-	// completion.definition = generatedStructConstructorCalltip;
-	// return completion;
-
-	return AutocompleteResponse.Completion();
 }

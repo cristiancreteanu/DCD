@@ -31,6 +31,7 @@ import dcd.common.messages;
 
 import dmd.dmodule;
 import dmd.tokens;
+import dmd.globals;
 
 import std.stdio : writeln;
 
@@ -47,6 +48,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
 
+	auto cursorLoc = Loc(rootModule.srcfile.toChars(), request.cursorLinnum, request.cursorCharnum);
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		cursorLoc, tokenArray, rootModule);

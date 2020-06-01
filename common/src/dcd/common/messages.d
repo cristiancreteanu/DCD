@@ -49,6 +49,64 @@ enum CompletionType : string
 	ddoc = "ddoc",
 }
 
+enum CompletionKind : char
+{
+	/// Invalid completion kind. This is used internally and will never
+	/// be returned in a completion response.
+	dummy = '?',
+
+	/// class names
+	className = 'c',
+
+	/// interface names
+	interfaceName = 'i',
+
+	/// structure names
+	structName = 's',
+
+	/// union name
+	unionName = 'u',
+
+	/// variable name
+	variableName = 'v',
+
+	/// member variable
+	memberVariableName = 'm',
+
+	/// keyword, built-in version, scope statement
+	keyword = 'k',
+
+	/// function or method
+	functionName = 'f',
+
+	/// enum name
+	enumName = 'g',
+
+	/// enum member
+	enumMember = 'e',
+
+	/// package name
+	packageName = 'P',
+
+	/// module name
+	moduleName = 'M',
+
+	/// alias name
+	aliasName = 'l',
+
+	/// template name
+	templateName = 't',
+
+	/// mixin template name
+	mixinTemplateName = 'T',
+
+	/// variadic template parameter
+	variadicTmpParam = 'p',
+
+	/// type template parameter when no constraint
+	typeTmpParam = 'h',
+}
+
 /**
  * Request kind
  */
@@ -111,15 +169,15 @@ struct AutocompleteRequest
 	 */
 	size_t cursorPosition;
 
-	// /**
-	//  * The cursor line number
-	//  */
-	// size_t cursorLineNum;
+	/**
+	 * The cursor line number
+	 */
+	uint cursorLinnum;
 
-	// /**
-	//  * The cursor character number
-	//  */
-	// size_t cursorCharNum;
+	/**
+	 * The cursor character number
+	 */
+	uint cursorCharnum;
 
 	/**
 	 * Name of symbol searched for
@@ -154,6 +212,14 @@ struct AutocompleteResponse
 		 * The byte offset at which the symbol is located or symbol location for symbol searches.
 		 */
 		size_t symbolLocation;
+		/**
+		//  * The line number at which the symbols is located or line number for symbol searches
+		//  */
+		// size_t symbolLinnum;
+		// /**
+		//  * The character number at which the symbols is located or character number for symbol searches
+		//  */
+		// size_t symbolCharnum;
 		/**
 		 * Documentation associated with this symbol.
 		 */

@@ -54,6 +54,8 @@ int runClient(string[] args)
 	sharedLog.fatalHandler = () {};
 
 	size_t cursorPos = size_t.max;
+	uint linnum = uint.max;
+	uint charnum = uint.max;
 	string[] addedImportPaths;
 	string[] removedImportPaths;
 	ushort port;
@@ -82,7 +84,8 @@ int runClient(string[] args)
 
 	try
 	{
-		getopt(args, "cursorPos|c", &cursorPos, "I", &addedImportPaths,
+		getopt(args, "cursorPos|c", &cursorPos, "linnum", &linnum,
+			"charnum", &charnum, "I", &addedImportPaths,
 			"R", &removedImportPaths, "port|p", &port, "help|h", &help,
 			"shutdown", &shutdown, "clearCache", &clearCache,
 			"symbolLocation|l", &symbolLocation, "doc|d", &doc,
@@ -178,14 +181,19 @@ int runClient(string[] args)
 		printImportList(response);
 		return 0;
 	}
-	else if (search == null && cursorPos == size_t.max)
+	else if (search == null)
 	{
-		// cursor position is a required argument
-		printHelp(args[0]);
-		return 1;
+		// the cursor position or the combination of line number
+		// and character number is a required argument
+		if ((cursorPos == size_t.max
+				&& (linnum == uint.max || charnum == uint.max))
+			|| (cursorPos != size_t.max
+				&& (linnum != uint.max || charnum != uint.max)))
+		{
+			printHelp(args[0]);
+			return 1;
+		}
 	}
-
-	// info("hahahahahahahahaha");
 
 	// Read in the source
 	immutable bool usingStdin = args.length <= 1;
@@ -223,6 +231,8 @@ int runClient(string[] args)
 	request.importPaths = addedImportPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
+	request.cursorLinnum = linnum;
+	request.cursorCharnum = charnum;
 	request.searchName = search;
 
 	if (symbolLocation | getIdentifier)
@@ -279,6 +289,17 @@ Options:
     --cursorPos | -c position
         Provides auto-completion at the given cursor position. The cursor
         position is measured in bytes from the beginning of the source code.
+		Must not be used with the combination of linnum and charnum.
+
+	--linnum
+		Provides auto-completion at the given line number in the file.
+		Must be used together with --charnum. Must not be used alongside
+		cursorPos.
+
+	--charnum
+		Provides auto-completion at the given character number in the file.
+		Must be used together with --linnum. Must not be used alongside
+		cursorPos.
 
     --clearCache
         Instructs the server to clear out its autocompletion cache.
