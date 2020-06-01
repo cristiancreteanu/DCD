@@ -29,7 +29,7 @@ import stdx.allocator.mallocator;
 import std.experimental.logger;
 import std.file;
 import std.getopt;
-import std.path: buildPath;
+import std.path;
 import std.process;
 import std.socket;
 import std.stdio;
@@ -48,8 +48,9 @@ import dmd.root.string : toDString;
 import dmd.root.filename;
 import dmd.identifier;
 import dmd.frontend;
-import dmd.errors : diagnosticHandler;
+import dmd.errors;
 import dmd.console;
+import dmd.mars;
 
 import core.stdc.stdarg;
 
@@ -274,7 +275,12 @@ int runServer(string[] args)
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 
-		Module rootModule = createModule("/home/cristian/dlang/Graduation/correct.d");
+		Strings libmodules;
+		auto dcdProjectDir = dirName(dirName(dirName(dirName(__FILE_FULL_PATH__))));
+		Module rootModule = createModule(isAbsolute(request.fileName)
+											? request.fileName.ptr
+											: buildNormalizedPath(dcdProjectDir, request.fileName).ptr,
+										libmodules);
 		rootModule.importedFrom = rootModule;
 
 		rootModule.read(Loc.initial);
@@ -403,103 +409,4 @@ options:
     --socketFile FILENAME
         Use the given FILENAME as the path to the UNIX domain socket. Using
         this switch is an error on Windows.`, programName);
-}
-
-Module createModule(const char *file)
-{
-    const(char)[] name;
-    version (Windows)
-    {
-        file = toWinPath(file);
-    }
-    const(char)[] p = file.toDString();
-    p = FileName.name(p); // strip path
-    const(char)[] ext = FileName.ext(p);
-    if (ext)
-    {
-        /* Deduce what to do with a file based on its extension */
-        if (FileName.equals(ext, global.obj_ext))
-        {
-            global.params.objfiles.push(file);
-            return null;
-        }
-        if (FileName.equals(ext, global.lib_ext))
-        {
-            global.params.libfiles.push(file);
-            return null;
-        }
-        static if (TARGET.Linux || TARGET.OSX || TARGET.FreeBSD
-                || TARGET.OpenBSD || TARGET.Solaris || TARGET.DragonFlyBSD)
-        {
-            if (FileName.equals(ext, global.dll_ext))
-            {
-                global.params.dllfiles.push(file);
-                return null;
-            }
-        }
-        if (ext == global.ddoc_ext)
-        {
-            global.params.ddocfiles.push(file);
-            return null;
-        }
-        if (FileName.equals(ext, global.json_ext))
-        {
-            global.params.doJsonGeneration = true;
-            global.params.jsonfilename = file.toDString;
-            return null;
-        }
-        if (FileName.equals(ext, global.map_ext))
-        {
-            global.params.mapfile = file.toDString;
-            return null;
-        }
-        static if (TARGET.Windows)
-        {
-            if (FileName.equals(ext, "res"))
-            {
-                global.params.resfile = file.toDString;
-                return null;
-            }
-            if (FileName.equals(ext, "def"))
-            {
-                global.params.deffile = file.toDString;
-                return null;
-            }
-            if (FileName.equals(ext, "exe"))
-            {
-                assert(0); // should have already been handled
-            }
-        }
-        /* Examine extension to see if it is a valid
-         * D source file extension
-         */
-        if (FileName.equals(ext, global.mars_ext) || FileName.equals(ext, global.hdr_ext) || FileName.equals(ext, "dd"))
-        {
-            name = FileName.removeExt(p);
-            if (!name.length || name == ".." || name == ".")
-            {
-            Linvalid:
-                error(Loc.initial, "invalid file name '%s'", file);
-                fatal();
-            }
-        }
-        else
-        {
-            error(Loc.initial, "unrecognized file extension %.*s", cast(int)ext.length, ext.ptr);
-            fatal();
-        }
-    }
-    else
-    {
-        name = p;
-        if (!name.length)
-            goto Linvalid;
-    }
-    /* At this point, name is the D source file name stripped of
-     * its path and extension.
-     */
-    auto id = Identifier.idPool(name);
-    auto m = new Module(file.toDString, id, global.params.doDocComments, global.params.doHdrGeneration);
-
-    return m;
 }
