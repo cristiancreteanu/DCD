@@ -49,6 +49,7 @@ import dmd.gluelayer;
 import std.stdio : writeln;
 
 
+
 /**
  * Handles autocompletion
  * Params:
@@ -145,7 +146,6 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		{
 			immutable size_t end = goBackToOpenParen(beforeTokens);
 			if (end != size_t.max) {
-				writeln("pareeeeeeeeeeeeeeeeeeeeeeeeeeeeen");
 				return parenCompletion(beforeTokens[0 .. end], tokenArray,
 					cursorLoc, rootModule);
 			}
@@ -157,7 +157,6 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 			{
 				if (beforeTokens.isUdaExpression)
 					beforeTokens = beforeTokens[$-1 .. $];
-				writeln("1111111111111");
 				return dotCompletion(beforeTokens, tokenArray, cursorLoc,
 					rootModule);
 			}
@@ -281,7 +280,6 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-		writeln("33333333333333333333333333");
 		// response.setCompletions(symbols, getExpression(beforeTokens),
 		// 	cursorPosition, CompletionType.identifiers, false, partial);
 		foreach (symbol; *symbols)
@@ -390,7 +388,6 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			if (to!string(sym.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
 				continue;
 
-			writeln("haaaaaaaahelujah");
 			if (auto fd = sym.isFuncDeclaration())
 			{
 				if (fd.isAuto()) {
@@ -661,7 +658,6 @@ body
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 	ref Module cache)
 {
-				writeln("aiciiiiiiiiiiiiiiiiii");
 	response.completionType = CompletionType.identifiers;
 	string partial = null;
 	if (tokens[$ - 1].value == TOK.identifier)
