@@ -162,7 +162,7 @@ int runClient(string[] args)
 		request.kind |= adding ? RequestKind.addImport : RequestKind.removeImport;
 		request.importPaths = (adding ? addedImportPaths : removedImportPaths)
 			.map!(a => absolutePath(a)).array;
-		if (cursorPos == size_t.max)
+		if (cursorPos == size_t.max && linnum == uint.max && charnum == uint.max)
 		{
 			Socket socket = createSocket(socketFile, port);
 			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
@@ -194,6 +194,7 @@ int runClient(string[] args)
 			return 1;
 		}
 	}
+
 
 	// Read in the source
 	immutable bool usingStdin = args.length <= 1;

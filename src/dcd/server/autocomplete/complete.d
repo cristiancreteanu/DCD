@@ -541,7 +541,6 @@ in
 }
 body
 {
-	writeln("daaaaaaaaaaaaaaaaaaa");
 	AutocompleteResponse response;
 	if (beforeTokens.length <= 2)
 		return response;
@@ -601,6 +600,7 @@ body
 		return response;
 	}
 
+	rootModule.parse();
 	semanticAnalysis(rootModule); //!!!!!!!!!!!!!!!!
 
 	Dsymbol[] symbols;
@@ -615,6 +615,10 @@ body
 	import containers.hashset : HashSet;
 	HashSet!string h;
 
+	string partial;
+	if (beforeTokens[$ - 1].value == TOK.identifier)
+		partial = to!string(beforeTokens[$ - 1].ident);
+
 	void addSymbolToResponses(Dsymbol sy)
 	{
 		if (auto imp = sy.isImport())
@@ -622,10 +626,16 @@ body
 				return;
 
 		if (sy.ident !is null && !h.contains(to!string(sy.ident))
-				/*&& !sy.skipOver	skipover am vazut ca se seteaza cand nu e public*/
+				&& (partial is null || toUpper(sy.ident.toString()).startsWith(toUpper(partial)))
+				&& !sy.isUnitTestDeclaration()
+				&& resolvedLocation == to!string(sy.loc.filename)
 				&& !sy.isCtorDeclaration())
 		{
-			response.completions ~= makeSymbolCompletionInfo(sy);
+			response.completions ~= AutocompleteResponse.Completion(
+										to!string(sy.ident),
+										getSymbolCompletionKind(sy), null,
+										resolvedLocation, 0,
+										to!string(sy.comment));
 			h.insert(to!string(sy.ident));
 		}
 	}
