@@ -88,18 +88,19 @@ int runServer(string[] args)
 
 	sharedLog.fatalHandler = () {};
 
+	global.gag = 1;
 	global.params.doDocComments = true;
 	global.path = new Strings();
     global.path.push("/home/cristian/dlang/phobos");
     global.path.push("/home/cristian/dlang/druntime/import");
 
-	// diagnosticHandler = (const ref Loc location,
-    //                         Color headerColor,
-    //                         const(char)* header,
-    //                         const(char)* messageFormat,
-    //                         va_list args,
-    //                         const(char)* prefix1,
-    //                         const(char)* prefix2) => true;
+	diagnosticHandler = (const ref Loc location,
+                            Color headerColor,
+                            const(char)* header,
+                            const(char)* messageFormat,
+                            va_list args,
+                            const(char)* prefix1,
+                            const(char)* prefix2) => true;
 	initDMD();
 
 
@@ -202,10 +203,6 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	Module cache = createModule("/home/cristian/dlang/Graduation/correct.d");
-	cache.importedFrom = cache;
-
-	cache.read(Loc.initial);
 	// cache.importAll(null);
 	// infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
@@ -277,6 +274,11 @@ int runServer(string[] args)
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 
+		Module rootModule = createModule("/home/cristian/dlang/Graduation/correct.d");
+		rootModule.importedFrom = rootModule;
+
+		rootModule.read(Loc.initial);
+
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
@@ -313,19 +315,19 @@ int runServer(string[] args)
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			s.sendResponse(complete(request, cache));
+			s.sendResponse(complete(request, rootModule));
 		}
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
+			s.trySendResponse(getDoc(request, rootModule), "Could not get DDoc information");
 		}
 		else if (request.kind & RequestKind.symbolLocation)
-			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
+			s.trySendResponse(findDeclaration(request, rootModule), "Could not get symbol location");
 		else if (request.kind & RequestKind.search)
-			s.sendResponse(symbolSearch(request, cache));
+			s.sendResponse(symbolSearch(request, rootModule));
 		else if (request.kind & RequestKind.localUse)
-			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+			s.trySendResponse(findLocalUse(request, rootModule), "Couldnot find local usage");
 
 		sw.stop();
 		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
