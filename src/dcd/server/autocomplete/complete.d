@@ -239,6 +239,24 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 							if (sds is null)
 								continue;
 
+							if (sds.isAggregateDeclaration())
+								foreach (keyword; ["tupleof", "mangleof", "alignof", "sizeof", "stringof", "init"])
+									response.completions ~= AutocompleteResponse.Completion(
+										keyword, CompletionKind.keyword, null, null, 0, null
+									);
+
+							if (sds.isEnumDeclaration())
+								foreach (keyword; ["init", "sizeof", "alignof", "mangleof", "stringof", "min", "max"])
+									response.completions ~= AutocompleteResponse.Completion(
+										keyword, CompletionKind.keyword, null, null, 0, null
+									);
+
+							if (sds.isClassDeclaration())
+								foreach (specific; ["classinfo", "__vptr", "__monitor"])
+									response.completions ~= AutocompleteResponse.Completion(
+										specific, CompletionKind.variableName, null, null, 0, null
+									);
+
 							Dsymbol[] members;
 							foreach (mem; *sds.members)
 								if (mem !is null
@@ -271,17 +289,18 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 
 	switch (significantTokenType)
 	{
-	mixin(STRING_LITERAL_CASES); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// foreach (symbol; arraySymbols)
-		// 	response.completions ~= makeSymbolCompletionInfo(symbol, symbol.kind);
-		// response.completionType = CompletionType.identifiers;
+	mixin(STRING_LITERAL_CASES);
+		foreach (symbol; ["alignof", "dup", "idup", "init", "length",
+							"mangleof", "ptr", "sizeof", "stringof"])
+			response.completions ~= AutocompleteResponse.Completion(
+				symbol, CompletionKind.keyword, null, null, 0, null
+			);
+		response.completionType = CompletionType.identifiers;
 		break;
 	mixin(TYPE_IDENT_CASES);
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-		// response.setCompletions(symbols, getExpression(beforeTokens),
-		// 	cursorPosition, CompletionType.identifiers, false, partial);
 		foreach (symbol; *symbols)
 		{
 			if (!toUpper(symbol.ident.toString()).startsWith(toUpper(partial)))
