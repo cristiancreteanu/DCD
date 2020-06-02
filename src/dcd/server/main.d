@@ -19,6 +19,8 @@
 module dcd.server.main;
 
 import core.sys.posix.sys.stat;
+import core.stdc.string : strcmp;
+
 import std.algorithm;
 import std.array;
 import std.conv;
@@ -92,8 +94,8 @@ int runServer(string[] args)
 	global.gag = 1;
 	global.params.doDocComments = true;
 	global.path = new Strings();
-    global.path.push("/home/cristian/dlang/phobos");
-    global.path.push("/home/cristian/dlang/druntime/import");
+    // global.path.push("/home/cristian/dlang/phobos");
+    // global.path.push("/home/cristian/dlang/druntime/import");
 
 	diagnosticHandler = (const ref Loc location,
                             Color headerColor,
@@ -159,7 +161,11 @@ int runServer(string[] args)
 	StopWatch sw = StopWatch(AutoStart.yes);
 
 	if (!ignoreConfig)
-		importPaths ~= loadConfiguredImportDirs();
+	{
+		auto configuredImportDirs = loadConfiguredImportDirs();
+		foreach (configuredImportDir; configuredImportDirs)
+			global.path.push(configuredImportDir.ptr);
+	}
 
 	Socket socket;
 	if (useTCP)
@@ -204,14 +210,24 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	// cache.importAll(null);
-	// infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
+	foreach (path; importPaths)
+	{
+		auto absPath = absolutePath(expandTilde(path));
+		if (!absPath.exists())
+		{
+			warning(path, " does not exist");
+			continue;
+		}
+
+		global.path.push(path.ptr);
+	}
+
+	infof("Import directories:\n    %-(%s\n    %)", importPaths);
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.instance.deallocate(buffer);
 
 	sw.stop();
-	// info(cache.symbolsAllocated, " symbols cached.");
 	info("Startup completed in ", sw.peek().total!"msecs"(), " milliseconds.");
 
 	// No relative paths
@@ -304,18 +320,33 @@ int runServer(string[] args)
 
 		if (request.kind & RequestKind.addImport)
 		{
-			// cache.addImportPaths(request.importPaths);
+			foreach (path; request.importPaths)
+				global.path.push(path.ptr);
 		}
 
 		if (request.kind & RequestKind.removeImport)
 		{
-			// cache.removeImportPaths(request.importPaths);
+			foreach (removePath; request.importPaths)
+			{
+				size_t idx = size_t.max;
+				foreach (i, path; *global.path)
+					if (strcmp(removePath.ptr, path) == 0)
+					{
+						idx = i;
+						break;
+					}
+
+				if (idx != size_t.max)
+					global.path.remove(idx);
+			}
 		}
 
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
-			// response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
+			foreach (path; *global.path)
+				response.importPaths ~= to!string(path);
+
 			info("Returning import path list");
 			s.sendResponse(response);
 		}
