@@ -277,6 +277,25 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 										// symbol.loc.linnum, symbol.loc.charnum,
 										to!string(mem.comment));
 							}
+
+							foreach (possibleUFCS; *symbols)
+							{
+								auto fd = possibleUFCS.isFuncDeclaration();
+								if (fd is null)
+									continue;
+
+								auto firstParam = (*fd.parameters)[0];
+								if (to!string(type) == to!string(firstParam.type))
+								{
+									response.completions ~= AutocompleteResponse.Completion(
+										to!string(fd.ident),
+										getSymbolCompletionKind(possibleUFCS),
+										to!string(fd.type),
+										to!string(fd.loc.filename), 0,
+										// symbol.loc.linnum, symbol.loc.charnum,
+										to!string(fd.comment));
+								}
+							}
 						}
 				}
 			response.completionType = CompletionType.identifiers;
