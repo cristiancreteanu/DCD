@@ -225,14 +225,14 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		if (beforeTokens[$ - 2].value == TOK.identifier)
 		{
 			auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-			foreach (id; *symbols)
+			foreach (id; *symbols) // searching for the declaration of the instance of the user-defined type
 				if (strcmp(id.ident.toChars(), beforeTokens[$ - 2].ident.toChars()) == 0)
 				{
 					auto dec = id.isDeclaration();
 					if (dec is null)
 						continue;
 
-					foreach (type; *symbols)
+					foreach (type; *symbols) // searching for the user-defined type
 						if (to!string(type) == to!string(dec.type))
 						{
 							auto sds = type.isScopeDsymbol();
@@ -258,6 +258,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 									);
 
 							Dsymbol[] members;
+
+							// filter user-defined type members
 							foreach (mem; *sds.members)
 								if (mem !is null
 									&& mem.ident !is null
@@ -266,6 +268,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 									&& strcmp(mem.ident.toChars(), "__ctor") != 0)
 									members ~= mem;
 
+							// adding the members of the user-defined type to completions
 							foreach (mem; members)
 							{
 								auto declaration = mem.isDeclaration();
@@ -278,6 +281,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 										to!string(mem.comment));
 							}
 
+							// looking for functions that get the user-defined type as their first parameter
 							foreach (possibleUFCS; *symbols)
 							{
 								auto fd = possibleUFCS.isFuncDeclaration();
