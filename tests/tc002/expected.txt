@@ -5,5 +5,5 @@ mangleof	k
 sizeof	k
 stringof	k
 tupleof	k
-x	v
-y	v
+x	m
+y	m
