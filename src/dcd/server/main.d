@@ -277,8 +277,9 @@ int runServer(string[] args)
 
 		Strings libmodules;
 		auto dcdProjectDir = dirName(dirName(dirName(dirName(__FILE_FULL_PATH__))));
+
 		Module rootModule = createModule(isAbsolute(request.fileName)
-											? request.fileName.ptr
+											? buildNormalizedPath(request.fileName).ptr
 											: buildNormalizedPath(dcdProjectDir, request.fileName).ptr,
 										libmodules);
 		rootModule.importedFrom = rootModule;

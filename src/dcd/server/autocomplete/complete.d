@@ -285,7 +285,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 							foreach (possibleUFCS; *symbols)
 							{
 								auto fd = possibleUFCS.isFuncDeclaration();
-								if (fd is null)
+								if (fd is null || fd.parameters is null || fd.parameters.length == 0)
 									continue;
 
 								auto firstParam = (*fd.parameters)[0];
