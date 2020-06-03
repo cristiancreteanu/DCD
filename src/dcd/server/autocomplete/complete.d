@@ -41,9 +41,10 @@ import dmd.tokens;
 import dmd.globals;
 import dmd.statement;
 import dmd.arraytypes;
-
-
+import dmd.astcodegen;
+import dmd.transitivevisitor;
 import dmd.gluelayer;
+import dmd.visitor;
 
 
 import std.stdio : writeln;
@@ -165,6 +166,50 @@ public AutocompleteResponse complete(const AutocompleteRequest request, Module r
 		}
 	}
 	return dotCompletion(beforeTokens, tokenArray, cursorLoc, rootModule);
+}
+
+private extern (C++) class CheckCursorWithinWithStatement : SemanticTimeTransitiveVisitor
+{
+    alias visit = SemanticTimeTransitiveVisitor.visit;
+
+    Loc loc;
+	string type;
+
+    this(Loc loc)
+    {
+        this.loc = loc;
+		this.type = null;
+    }
+
+	string getType()
+	{
+		return type;
+	}
+
+    override void visit(ASTCodegen.Module m)
+    {
+        foreach (mem; *m.members)
+            if (mem.loc.filename && strcmp(mem.loc.filename, loc.filename) == 0)
+                mem.accept(this);
+    }
+
+    override void visit(ASTCodegen.WithStatement s)
+    {
+        if (strcmp(s.loc.filename, loc.filename) != 0
+            || !((s._body.loc.linnum < loc.linnum || (s._body.loc.linnum == loc.linnum && s._body.loc.charnum <= loc.charnum))
+            && (s.endloc.linnum > loc.linnum || (s.endloc.linnum == loc.linnum && s.endloc.charnum >= loc.charnum))))
+            return;
+
+		type = to!string(s.exp.type);
+    }
+}
+
+string isWithScope(Loc cursorPosition, ref Module rootModule)
+{
+	scope withVisitor = new CheckCursorWithinWithStatement(cursorPosition);
+	rootModule.accept(withVisitor);
+
+	return withVisitor.getType();
 }
 
 /**
@@ -324,8 +369,34 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
+		auto type = isWithScope(cursorPosition, rootModule);
+
 		foreach (symbol; *symbols)
 		{
+			// if cursor is within a with statement, add suggestions
+			// TODO: make it work for template declarations (tc003)
+			if (type && strcmp(type.ptr, symbol.ident.toChars()) == 0)
+			{
+				auto scopeSym = symbol.isScopeDsymbol();
+				if (scopeSym is null || scopeSym.members is null)
+					continue;
+
+				foreach (mem; *scopeSym.members)
+				{
+					if (mem is null || mem.ident is null)
+						continue;
+
+					if (!toUpper(mem.ident.toString()).startsWith(toUpper(partial)))
+						continue;
+
+					response.completions ~= AutocompleteResponse.Completion(
+										to!string(mem.ident),
+										getSymbolCompletionKind(mem),
+										null, to!string(mem.loc.filename), 0,
+										to!string(mem.comment));
+				}
+			}
+
 			if (!toUpper(symbol.ident.toString()).startsWith(toUpper(partial)))
 				continue;
 
@@ -339,6 +410,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 										to!string(symbol.comment));
 			response.completionType = CompletionType.identifiers;
 		}
+
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case TOK.colon:
