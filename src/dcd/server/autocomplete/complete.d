@@ -333,7 +333,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 			response.completions ~= AutocompleteResponse.Completion(
 										to!string(symbol.ident),
 										getSymbolCompletionKind(symbol),
-										to!string(dec.type),
+										dec ? to!string(dec.type) : null,
 										to!string(symbol.loc.filename), 0,
 										// symbol.loc.linnum, symbol.loc.charnum,
 										to!string(symbol.comment));
