@@ -166,10 +166,21 @@ private struct CallbackHelper {
     }
 };
 
-private bool isBefore(Loc loc1, Loc loc2)
+package bool isBefore(Loc loc1, Loc loc2)
 {
     return loc1.linnum != loc2.linnum? loc1.linnum < loc2.linnum
                                     : loc1.charnum < loc2.charnum;
+}
+
+package bool isAfter(Loc loc1, Loc loc2)
+{
+    return loc1.linnum != loc2.linnum? loc1.linnum > loc2.linnum
+                                    : loc1.charnum > loc2.charnum;
+}
+
+package bool isEqual(Loc loc1, Loc loc2)
+{
+    return loc1.linnum == loc2.linnum && loc1.charnum == loc2.charnum;
 }
 
 void semanticAnalysis(ref Module rootModule)

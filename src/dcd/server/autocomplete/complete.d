@@ -31,6 +31,8 @@ import std.string;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
+import dcd.server.autocomplete.parenthesis;
+
 import dcd.common.constants;
 import dcd.common.messages;
 
@@ -423,142 +425,6 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		auto symbols = getSymbolsInCompletionScope(Loc.initial, rootModule);
 		// response.setCompletions(symbols, getExpression(beforeTokens),
 		// 	Loc.initial, CompletionType.identifiers, false, partial);
-		break;
-	default:
-		break;
-	}
-	return response;
-}
-
-/**
- * Handles paren completion for function calls and some keywords
- * Params:
- *     beforeTokens = the tokens before the cursor
- *     tokenArray = all tokens in the file
- *     cursorPosition = the cursor position in bytes
- * Returns:
- *     the autocompletion response
- */
-AutocompleteResponse parenCompletion(T)(T beforeTokens,
-	const(Token)[] tokenArray, Loc cursorPosition, ref Module rootModule)
-{
-	AutocompleteResponse response;
-	immutable(ConstantCompletion)[] completions;
-	switch (beforeTokens[$ - 2].value)
-	{
-	case TOK.traits:
-		completions = traits;
-		goto fillResponse;
-	case TOK.scope_:
-		completions = scopes;
-		goto fillResponse;
-	case TOK.version_:
-		completions = predefinedVersions;
-		goto fillResponse;
-	case TOK.extern_:
-		completions = linkages;
-		goto fillResponse;
-	case TOK.pragma_:
-		completions = pragmas;
-	fillResponse:
-		response.completionType = CompletionType.identifiers;
-		foreach (completion; completions)
-		{
-			response.completions ~= AutocompleteResponse.Completion(
-				completion.identifier,
-				CompletionKind.keyword,
-				null, null, 0, // definition, symbol path+location
-				completion.ddoc
-			);
-		}
-		break;
-	case TOK.int32Literal:
-	case TOK.uns32Literal:
-	case TOK.int64Literal:
-	case TOK.uns64Literal:
-	case TOK.int128Literal:
-	case TOK.uns128Literal:
-	case TOK.float32Literal:
-	case TOK.float64Literal:
-	case TOK.float80Literal:
-	case TOK.imaginary32Literal:
-	case TOK.imaginary64Literal:
-	case TOK.imaginary80Literal:
-	case TOK.charLiteral:
-	case TOK.wcharLiteral:
-	case TOK.dcharLiteral:
-	case TOK.identifier:
-	case TOK.this_:
-	case TOK.super_:
-	case TOK.rightParentheses:
-	case TOK.rightBracket:
-	mixin(STRING_LITERAL_CASES);
-		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
-		// as putea pur si simplu sa traversez AST-ul si aia e
-		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-		string[] callTips;
-		foreach (sym; *symbols)
-		{
-			if (to!string(sym.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
-				continue;
-
-			if (auto fd = sym.isFuncDeclaration())
-			{
-				if (fd.isAuto()) {
-					callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
-				} else {
-					auto sig = to!string(fd.originalType.toChars());
-					auto paren = indexOf(sig, '(');
-					callTips ~= sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
-				}
-			}
-			else if (auto td = sym.isTemplateDeclaration())
-			{
-				callTips ~= to!string(td.toChars());
-			}
-			else if (auto sd = sym.isAggregateDeclaration()) // struct/class
-			{
-				// searching for constructor
-				foreach (mem; *sd.members)
-				{
-					if (mem is null || mem.ident is null)
-						continue;
-
-					if (strcmp(mem.ident.toChars(), "__ctor") == 0)
-					{
-						auto fd = mem.isFuncDeclaration();
-						auto sig = to!string(fd.type);
-
-						// sig has the following format:
-						//			"ref *struct name*(*list of params*)"
-						// ref is dropped in the following
-						callTips ~= sig[indexOf(sig, sd.ident.toString())..$];
-					}
-				}
-			}
-			else if (auto ad = sym.isAliasDeclaration) {
-				if (auto fd = ad.aliassym.isFuncDeclaration())
-				{
-					if (fd.isAuto()) {
-						callTips ~= "auto " ~ to!string(fd) ~ to!string(fd.originalType.toChars());
-					} else {
-						auto sig = to!string(fd.originalType.toChars());
-						auto paren = indexOf(sig, '(');
-						callTips ~= sig[0..paren] ~ " " ~ to!string(fd) ~ sig[paren..$];
-					}
-				}
-			}
-		}
-
-		foreach (tip; callTips)
-		{
-			response.completions ~= AutocompleteResponse.Completion(
-										null, CompletionKind.functionName,
-										tip, null, 0,
-										// symbol.loc.linnum, symbol.loc.charnum,
-										null);
-		}
-		response.completionType = CompletionType.calltips;
 		break;
 	default:
 		break;
