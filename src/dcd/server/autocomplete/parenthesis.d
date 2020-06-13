@@ -36,6 +36,22 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	AutocompleteResponse response;
 	immutable(ConstantCompletion)[] completions;
 
+    auto i = beforeTokens.length - 1;
+    int rightParenthesis = 0;
+    while (i >= 0 && !(beforeTokens[i].value == TOK.leftParentheses && !rightParenthesis))
+    {
+        if (beforeTokens[i].value == TOK.rightParentheses)
+            rightParenthesis++;
+        else if (beforeTokens[i].value == TOK.leftParentheses)
+            rightParenthesis--;
+        i--;
+    }
+    Loc startOfCall = beforeTokens[i].loc; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    Loc newLoc = Loc(null, 0, 0);
+    if (i >= 2 && beforeTokens[i - 2].value == TOK.new_)
+        newLoc = beforeTokens[i - 2].loc;
+
 	switch (beforeTokens[$ - 2].value)
 	{
 	case TOK.traits:
@@ -85,10 +101,23 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case TOK.rightParentheses:
 	case TOK.rightBracket:
 	mixin(STRING_LITERAL_CASES);
-		// nu cred ca e nevoie de analiza semantica aici, dar fac momentan asa
-		// as putea pur si simplu sa traversez AST-ul si aia e
+        expressionSemantic = function Expression(Expression e, Scope *sc)
+                                {
+                                    scope v = new CustomExpSemVisitor(sc);
+                                    e.accept(v);
+                                    return v.result;
+                                };
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
-		string[] callTips;
+		FunctionCallRetrieval visitor;
+
+        if (newLoc.filename)
+            visitor = new FunctionCallRetrieval(newLoc);
+        else
+            visitor = new FunctionCallRetrieval(startOfCall);
+
+        rootModule.accept(visitor);
+
+        string[] callTips;
 		foreach (sym; *symbols)
 		{
 			if (to!string(sym.ident) != to!string(beforeTokens[$ - 2].ident)) // deci asta o sa mearga doar pe cazul in care am bla(|2)!!!!!!!!
@@ -319,20 +348,18 @@ private extern (C++) class FunctionCallRetrieval : SemanticTimeTransitiveVisitor
         if (shouldSkip(e.loc))
             return;
 
-        auto stringConv = to!string(e);
-        auto leftParenthesisIndex = indexOf(stringConv, '(');
+        // auto stringConv = to!string(e);
+        // auto leftParenthesisIndex = indexOf(stringConv, '(');
 
-        // writeln(stringConv);
-        // writeln(leftParenthesisIndex);
+        // if (e.loc.linnum != loc.linnum || e.loc.charnum >= loc.charnum)
+        //     return;
 
-        if (e.loc.linnum != loc.linnum || e.loc.charnum >= loc.charnum)
-            return;
-
-        auto matchingRightParen = getMatchingRightParen(stringConv.ptr, leftParenthesisIndex);
-        // writeln(matchingRightParen);
-        if (matchingRightParen != size_t.max
-            && loc.charnum >= e.loc.charnum
-                + matchingRightParen - leftParenthesisIndex + 1)
+        // const auto matchingRightParen = getMatchingRightParen(stringConv.ptr, leftParenthesisIndex);
+        // if (matchingRightParen != size_t.max
+        //     && loc.charnum >= e.loc.charnum
+        //         + matchingRightParen - leftParenthesisIndex + 1)
+        //     return;
+        if (!e.loc.isEqual(loc))
             return;
 
         writeln("call exp " ~ to!string(e));
@@ -344,14 +371,17 @@ private extern (C++) class FunctionCallRetrieval : SemanticTimeTransitiveVisitor
 
         if (!found) {
             // checking to see if it's DotVarExp: instance.call(args)
-            e.e1.accept(this);
+            // e.e1.accept(this);
+            if (e.e1)
+            {
+                auto dotExp = e.e1.isDotVarExp();
+                if (dotExp)
+                {
+                    type = dotExp.e1.type;
+                }
+            }
+
             found = true;
         }
-    }
-
-    override void visit(ASTCodegen.DotVarExp e)
-    {
-        // writeln("DotVarExp " ~ to!string(e.e1.type.toPrettyChars()));
-        this.type = e.e1.type; // de vazut aici, mai trebuie niste conditii ca se viziteaza de mai multe ori
     }
 }
