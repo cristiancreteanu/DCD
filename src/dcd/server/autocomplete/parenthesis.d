@@ -26,6 +26,7 @@ import std.conv : to;
 import std.string;
 import std.stdio : writeln;
 
+
 /**
  * Handles paren completion for function calls and some keywords
  * Params:
@@ -108,13 +109,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	mixin(STRING_LITERAL_CASES);
 
         // offering alternative semantic analysis through the custom visitor
-        Compiler.alternativeExpressionSemantic =
-            function Expression(Expression e, Scope *sc)
-                {
-                    scope v = new CustomExpSemVisitor(sc);
-                    e.accept(v);
-                    return v.result;
-                };
+        Compiler.alternativeExpressionSemantic = &alternativExp;
+
 		auto symbols = getSymbolsInCompletionScope(cursorPosition, rootModule);
 
         // retrieving the call/new expression at cursor level
@@ -144,6 +140,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	}
 	return response;
 }
+
 
 private void createCallTipsForExpression(Expression e, ref string[] callTips,
                                         Dsymbols* symbols)
@@ -282,6 +279,13 @@ private void createCallTipsForNewExp(NewExp e, ref string[] callTips,
             createCallTipsForAggregateDeclaraton(ad, callTips);
     }
 }
+
+private extern (C++) Expression alternativExp(Expression e, Scope *sc)
+{
+    scope v = new CustomExpSemVisitor(sc);
+    e.accept(v);
+    return v.result;
+};
 
 private extern (C++) final class CustomExpSemVisitor : ExpressionSemanticVisitorImpl
 {
