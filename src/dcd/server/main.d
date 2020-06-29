@@ -91,22 +91,6 @@ int runServer(string[] args)
 
 	sharedLog.fatalHandler = () {};
 
-	global.gag = 1;
-	global.params.doDocComments = true;
-	global.path = new Strings();
-    // global.path.push("/home/cristian/dlang/phobos");
-    // global.path.push("/home/cristian/dlang/druntime/import");
-
-	diagnosticHandler = (const ref Loc location,
-                            Color headerColor,
-                            const(char)* header,
-                            const(char)* messageFormat,
-                            va_list args,
-                            const(char)* prefix1,
-                            const(char)* prefix2) => true;
-	initDMD();
-
-
 	try
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
@@ -210,20 +194,6 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	foreach (path; importPaths)
-	{
-		auto absPath = absolutePath(expandTilde(path));
-		if (!absPath.exists())
-		{
-			warning(path, " does not exist");
-			continue;
-		}
-
-		global.path.push(path.ptr);
-	}
-
-	infof("Import directories:\n    %-(%s\n    %)", importPaths);
-
 	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.instance.deallocate(buffer);
 
@@ -240,6 +210,36 @@ int runServer(string[] args)
 
 	serverLoop: while (true)
 	{
+		global.gag = 1;
+		global.params.doDocComments = true;
+		global.path = new Strings();
+		// global.path.push("/home/cristian/dlang/phobos");
+		// global.path.push("/home/cristian/dlang/druntime/import");
+
+		foreach (path; importPaths)
+		{
+			auto absPath = absolutePath(expandTilde(path));
+			if (!absPath.exists())
+			{
+				warning(path, " does not exist");
+				continue;
+			}
+
+			global.path.push(path.ptr);
+		}
+
+		// infof("Import directories:\n    %-(%s\n    %)", importPaths);
+
+		diagnosticHandler = (const ref Loc location,
+								Color headerColor,
+								const(char)* header,
+								const(char)* messageFormat,
+								va_list args,
+								const(char)* prefix1,
+								const(char)* prefix2) => true;
+
+		initDMD();
+
 		auto s = socket.accept();
 		s.blocking = true;
 
@@ -369,9 +369,12 @@ int runServer(string[] args)
 
 		sw.stop();
 		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
+
+		rootModule.destroy();
+
+		deinitializeDMD();
 	}
 
-	deinitializeDMD();
 
 	return 0;
 }
